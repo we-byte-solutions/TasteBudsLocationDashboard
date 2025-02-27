@@ -1,0 +1,26 @@
+.stApp {
+    font-family: Arial, sans-serif;
+}
+
+.table-header {
+    font-weight: bold;
+    background-color: #f0f2f6;
+}
+
+.total-row {
+    font-weight: bold;
+    border-top: 2px solid #000;
+}
+
+div[data-testid="stTable"] {
+    font-size: 14px;
+}
+
+.stSelectbox {
+    margin-bottom: 1rem;
+}
+
+.report-title {
+    text-align: center;
+    margin-bottom: 2rem;
+}
