@@ -102,7 +102,41 @@ filtered_modifiers_df = st.session_state.modifiers_df[
 
 # Generate report
 interval_minutes = 30 if interval == '30 minutes' else 60
-report_df = utils.generate_report_data(filtered_items_df, filtered_modifiers_df, interval_minutes)
+def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
+    """Generate report data with all required calculations"""
+    if items_df is None or items_df.empty:
+        return pd.DataFrame()
+
+    # Create time intervals and service periods
+    items_df = create_time_intervals(items_df, interval_minutes)
+    items_df = get_service_periods(items_df)
+
+    if modifiers_df is not None and not modifiers_df.empty:
+        modifiers_df = create_time_intervals(modifiers_df, interval_minutes)
+        modifiers_df = get_service_periods(modifiers_df)
+
+    report_data = []
+    for service in ['Lunch', 'Dinner']:
+        service_items_df = items_df[items_df['Service'] == service]
+        service_modifiers_df = modifiers_df[modifiers_df['Service'] == service] if modifiers_df is not None else None
+
+        intervals = sorted(service_items_df['Interval'].unique())
+        for interval in intervals:
+            interval_items_df = service_items_df[service_items_df['Interval'] == interval]
+            interval_modifiers_df = service_modifiers_df[service_modifiers_df['Interval'] == interval] if service_modifiers_df is not None else None
+
+            counts = calculate_category_counts(interval_items_df, interval_modifiers_df)
+            total = sum(counts.values())
+
+            row_data = {
+                'Service': service,
+                'Interval': interval,
+                **counts,
+                'Total': total
+            }
+            report_data.append(row_data)
+
+    return pd.DataFrame(report_data)
 
 # Display logo
 logo = Image.open('attached_assets/image_1740704103897.png')
@@ -113,35 +147,11 @@ st.markdown(f'<h1 class="report-title">{selected_location}</h1>', unsafe_allow_h
 st.markdown(f'<h2 class="report-title">{selected_date.strftime("%m/%d/%Y")}</h2>', unsafe_allow_html=True)
 st.markdown('<h3 class="report-title">Category Sales Count Report</h3>', unsafe_allow_html=True)
 
-# Report generation and display section
-report_table = pd.DataFrame(columns=[
-    'Service', 'Interval', '1/2 Chix', '1/2 Ribs', '6oz Mod', '8oz Mod',
-    'Corn', 'Full Ribs', 'Grits', 'Pots', 'Total'
-])
-
-# Add data to report table
-for service in ['Lunch', 'Dinner']:
-    service_data = report_df[report_df['Service'] == service].copy()
-
-    # Add service rows
-    report_table = pd.concat([report_table, service_data])
-
-    # Calculate service total
-    numeric_cols = ['1/2 Chix', '1/2 Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Full Ribs', 'Grits', 'Pots', 'Total']
-    service_total = service_data[numeric_cols].sum()
-    service_total['Service'] = f'{service} Total'
-    service_total['Interval'] = ''
-    report_table = pd.concat([report_table, pd.DataFrame([service_total])])
-
-# Calculate and add grand total
-grand_total = report_df[numeric_cols].sum()
-grand_total['Service'] = 'Total'
-grand_total['Interval'] = ''
-report_table = pd.concat([report_table, pd.DataFrame([grand_total])])
-
 # Display the report
+report_df = utils.generate_report_data(filtered_items_df, filtered_modifiers_df, interval_minutes)
+
 st.dataframe(
-    report_table,
+    report_df,
     hide_index=True,
     use_container_width=True,
     column_config={

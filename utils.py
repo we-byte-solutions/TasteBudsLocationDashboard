@@ -109,24 +109,24 @@ def calculate_category_counts(items_df, modifiers_df=None):
     if not items_df.empty:
         for _, row in items_df.iterrows():
             menu_item = str(row['Menu Item']).strip()
-            if menu_item in items_mapping:
-                category = items_mapping[menu_item]
-                if category in categories:
-                    qty = float(row['Qty'])
+            qty = float(row['Qty'])
+
+            for mapping_item, category in items_mapping.items():
+                if mapping_item.strip() == menu_item and category in categories:
                     categories[category] += qty
+                    break
 
     # Process modifiers
     if modifiers_df is not None and not modifiers_df.empty:
         for _, row in modifiers_df.iterrows():
             modifier = str(row['Modifier']).strip()
-            if modifier in modifiers_mapping:
-                category = modifiers_mapping[modifier]
-                if category in categories:
-                    qty = float(row['Qty'])
-                    categories[category] += qty
+            qty = float(row['Qty'])
 
-    # Convert float quantities to integers
-    categories = {k: int(v) for k, v in categories.items()}
+            for mapping_mod, category in modifiers_mapping.items():
+                if mapping_mod.strip() == modifier and category in categories:
+                    categories[category] += qty
+                    break
+
     return categories
 
 def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
