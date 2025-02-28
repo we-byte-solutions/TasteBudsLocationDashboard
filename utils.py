@@ -109,22 +109,20 @@ def calculate_category_counts(items_df, modifiers_df=None):
     if not items_df.empty:
         for _, row in items_df.iterrows():
             menu_item = str(row['Menu Item']).strip()
-            qty = float(row['Qty'])
-
             if menu_item in items_mapping:
                 category = items_mapping[menu_item]
                 if category in categories:
+                    qty = float(row['Qty'])
                     categories[category] += qty
 
     # Process modifiers
     if modifiers_df is not None and not modifiers_df.empty:
         for _, row in modifiers_df.iterrows():
             modifier = str(row['Modifier']).strip()
-            qty = float(row['Qty'])
-
             if modifier in modifiers_mapping:
                 category = modifiers_mapping[modifier]
                 if category in categories:
+                    qty = float(row['Qty'])
                     categories[category] += qty
 
     # Convert float quantities to integers

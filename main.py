@@ -139,10 +139,6 @@ grand_total['Service'] = 'Total'
 grand_total['Interval'] = ''
 report_table = pd.concat([report_table, pd.DataFrame([grand_total])])
 
-# Ensure all numeric columns are properly formatted as integers
-for col in numeric_cols:
-    report_table[col] = pd.to_numeric(report_table[col], errors='coerce').fillna(0).astype(int)
-
 # Display the report
 st.dataframe(
     report_table,
