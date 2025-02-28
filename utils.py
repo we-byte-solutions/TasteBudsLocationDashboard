@@ -17,13 +17,13 @@ def load_data(items_file, modifiers_file):
         modifiers_df = pd.read_csv(modifiers_file)
 
         # Validate required columns
-        items_required_columns = ['Location', 'Order Date', 'Menu Item', 'Menu', 'Item Selection Id']
+        items_required_columns = ['Location', 'Order Date', 'Item Selection Id', 'PLU']
         valid_items, message = validate_csv_format(items_df, items_required_columns)
         if not valid_items:
             st.error(f"Invalid items file format: {message}")
             return None, None
 
-        modifiers_required_columns = ['Location', 'Order Date', 'Modifier']
+        modifiers_required_columns = ['Location', 'Order Date', 'Modifier PLU']
         valid_modifiers, message = validate_csv_format(modifiers_df, modifiers_required_columns)
         if not valid_modifiers:
             st.error(f"Invalid modifiers file format: {message}")
@@ -31,6 +31,7 @@ def load_data(items_file, modifiers_file):
 
         # Convert date columns to datetime
         items_df['Order Date'] = pd.to_datetime(items_df['Order Date'])
+        modifiers_df['Order Date'] = pd.to_datetime(modifiers_df['Order Date'])
 
         return items_df, modifiers_df
     except Exception as e:
@@ -57,39 +58,75 @@ def get_service_periods(df):
     )
     return df
 
-def calculate_category_counts(df):
-    """Calculate counts for each category using Item Selection Id"""
+# PLU to Category mapping
+PLU_CATEGORY_MAP = {
+    '2308': 'Grits',  # Roasted Corn Grits
+    '2314': '1/2 Chix',  # French Fries when with 1/2 Chicken
+    '2320': 'Pots',  # Steamed Broccoli
+    '2326': 'Corn',  # Bacon Braised Collard Greens
+    '82294': 'Full Ribs',  # Thai Green Beans
+    '2389': '6oz Mod',  # White Rice
+    '2311': '8oz Mod',  # Mashed Sweet Potatoes
+    '2313': '1/2 Ribs',  # Red Beans & Rice
+}
+
+def calculate_category_counts(items_df, modifiers_df=None):
+    """Calculate counts for each category using PLU"""
     categories = {
-        '1/2 Chix': df[df['Menu Item'].str.contains('Chicken', na=False) & 
-                       (df['Menu'].str.contains('Lunch|Dinner', na=False))]['Item Selection Id'].nunique(),
-        '1/2 Ribs': df[df['Menu Item'].str.contains('Ribs', na=False) & 
-                       (df['Menu'].str.contains('Lunch|Dinner', na=False))]['Item Selection Id'].nunique(),
-        '6oz Mod': df[df['Menu Item'].str.contains('6oz|6 oz', na=False)]['Item Selection Id'].nunique(),
-        '8oz Mod': df[df['Menu Item'].str.contains('8oz|8 oz', na=False)]['Item Selection Id'].nunique(),
-        'Corn': df[df['Menu Item'].str.contains('Corn', na=False)]['Item Selection Id'].nunique(),
-        'Full Ribs': df[df['Menu Item'].str.contains('Full.*Ribs|Ribs.*Full', na=False)]['Item Selection Id'].nunique(),
-        'Grits': df[df['Menu Item'].str.contains('Grits', na=False)]['Item Selection Id'].nunique(),
-        'Pots': df[df['Menu Item'].str.contains('Pot', na=False)]['Item Selection Id'].nunique()
+        '1/2 Chix': 0,
+        '1/2 Ribs': 0,
+        '6oz Mod': 0,
+        '8oz Mod': 0,
+        'Corn': 0,
+        'Full Ribs': 0,
+        'Grits': 0,
+        'Pots': 0
     }
+
+    # Count items based on PLU
+    if 'PLU' in items_df.columns:
+        for plu in items_df['PLU'].dropna().unique():
+            if str(plu) in PLU_CATEGORY_MAP:
+                category = PLU_CATEGORY_MAP[str(plu)]
+                count = len(items_df[items_df['PLU'] == plu])
+                if category in categories:
+                    categories[category] += count
+
+    # Count modifiers based on Modifier PLU
+    if modifiers_df is not None and 'Modifier PLU' in modifiers_df.columns:
+        for plu in modifiers_df['Modifier PLU'].dropna().unique():
+            if str(plu) in PLU_CATEGORY_MAP:
+                category = PLU_CATEGORY_MAP[str(plu)]
+                count = len(modifiers_df[modifiers_df['Modifier PLU'] == plu])
+                if category in categories:
+                    categories[category] += count
+
     return categories
 
-def generate_report_data(df, interval_minutes=60):
+def generate_report_data(items_df, modifiers_df, interval_minutes=60):
     """Generate report data with all required calculations"""
-    if df is None:
+    if items_df is None:
         return pd.DataFrame()
 
-    df = create_time_intervals(df, interval_minutes)
-    df = get_service_periods(df)
+    items_df = create_time_intervals(items_df, interval_minutes)
+    items_df = get_service_periods(items_df)
+
+    if modifiers_df is not None:
+        modifiers_df = create_time_intervals(modifiers_df, interval_minutes)
+        modifiers_df = get_service_periods(modifiers_df)
 
     report_data = []
 
     for service in ['Lunch', 'Dinner']:
-        service_df = df[df['Service'] == service]
-        intervals = sorted(service_df['Interval'].unique())
+        service_items_df = items_df[items_df['Service'] == service]
+        service_modifiers_df = modifiers_df[modifiers_df['Service'] == service] if modifiers_df is not None else None
+        intervals = sorted(service_items_df['Interval'].unique())
 
         for interval in intervals:
-            interval_df = service_df[service_df['Interval'] == interval]
-            counts = calculate_category_counts(interval_df)
+            interval_items_df = service_items_df[service_items_df['Interval'] == interval]
+            interval_modifiers_df = service_modifiers_df[service_modifiers_df['Interval'] == interval] if service_modifiers_df is not None else None
+
+            counts = calculate_category_counts(interval_items_df, interval_modifiers_df)
 
             row_data = {
                 'Service': service,
