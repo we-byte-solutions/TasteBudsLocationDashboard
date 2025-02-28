@@ -18,10 +18,6 @@ if 'items_df' not in st.session_state:
     st.session_state.items_df = None
 if 'modifiers_df' not in st.session_state:
     st.session_state.modifiers_df = None
-if 'historical_items_df' not in st.session_state:
-    st.session_state.historical_items_df = None
-if 'historical_modifiers_df' not in st.session_state:
-    st.session_state.historical_modifiers_df = None
 
 # Sidebar
 st.sidebar.title('Data Upload')
@@ -34,19 +30,9 @@ modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV", type=['csv'])
 if items_file and modifiers_file:
     new_items_df, new_modifiers_df = utils.load_data(items_file, modifiers_file)
     if new_items_df is not None and new_modifiers_df is not None:
-        # Append new data to historical data
-        if st.session_state.historical_items_df is not None:
-            st.session_state.historical_items_df = pd.concat([st.session_state.historical_items_df, new_items_df])
-            st.session_state.historical_modifiers_df = pd.concat([st.session_state.historical_modifiers_df, new_modifiers_df])
-        else:
-            st.session_state.historical_items_df = new_items_df
-            st.session_state.historical_modifiers_df = new_modifiers_df
-
-        # Update current data
-        st.session_state.items_df = st.session_state.historical_items_df
-        st.session_state.modifiers_df = st.session_state.historical_modifiers_df
-
-        st.sidebar.success('Files uploaded successfully! Historical data updated.')
+        st.session_state.items_df = new_items_df
+        st.session_state.modifiers_df = new_modifiers_df
+        st.sidebar.success('Files uploaded successfully!')
 
 # Load sample data if no data is loaded
 if st.session_state.items_df is None:
@@ -54,8 +40,6 @@ if st.session_state.items_df is None:
         'attached_assets/ItemSelectionDetails.csv',
         'attached_assets/ModifiersSelectionDetails.csv'
     )
-    st.session_state.historical_items_df = st.session_state.items_df
-    st.session_state.historical_modifiers_df = st.session_state.modifiers_df
 
 # Sidebar filters
 st.sidebar.title('Filters')
@@ -80,7 +64,7 @@ interval = st.sidebar.radio(
     horizontal=True
 )
 
-# Filter data
+# Filter data based on selected location and date
 filtered_items_df = st.session_state.items_df[
     (st.session_state.items_df['Location'] == selected_location) &
     (st.session_state.items_df['Order Date'].dt.date == selected_date)
@@ -152,10 +136,8 @@ st.dataframe(
     }
 )
 
-# Clear historical data button
-if st.sidebar.button('Clear Historical Data'):
-    st.session_state.historical_items_df = None
-    st.session_state.historical_modifiers_df = None
+# Clear data button
+if st.sidebar.button('Clear Uploaded Data'):
     st.session_state.items_df = None
     st.session_state.modifiers_df = None
     st.experimental_rerun()
