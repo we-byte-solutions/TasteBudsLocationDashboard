@@ -100,21 +100,6 @@ filtered_modifiers_df = st.session_state.modifiers_df[
     (st.session_state.modifiers_df['Order Date'].dt.date == selected_date)
 ]
 
-# After filtering data
-st.sidebar.write("Debug Information:")
-st.sidebar.write(f"Number of items: {len(filtered_items_df)}")
-st.sidebar.write(f"Number of modifiers: {len(filtered_modifiers_df)}")
-
-# Check sample of quantities
-st.sidebar.write("Sample Item Quantities:")
-if not filtered_items_df.empty:
-    st.sidebar.write(filtered_items_df[['Menu Item', 'Qty']].head())
-
-st.sidebar.write("Sample Modifier Quantities:")
-if not filtered_modifiers_df.empty:
-    st.sidebar.write(filtered_modifiers_df[['Modifier', 'Qty']].head())
-
-
 # Generate report
 interval_minutes = 30 if interval == '30 minutes' else 60
 report_df = utils.generate_report_data(filtered_items_df, filtered_modifiers_df, interval_minutes)
@@ -128,7 +113,7 @@ st.markdown(f'<h1 class="report-title">{selected_location}</h1>', unsafe_allow_h
 st.markdown(f'<h2 class="report-title">{selected_date.strftime("%m/%d/%Y")}</h2>', unsafe_allow_html=True)
 st.markdown('<h3 class="report-title">Category Sales Count Report</h3>', unsafe_allow_html=True)
 
-# Create the report table
+# Report generation and display section
 report_table = pd.DataFrame(columns=[
     'Service', 'Interval', '1/2 Chix', '1/2 Ribs', '6oz Mod', '8oz Mod',
     'Corn', 'Full Ribs', 'Grits', 'Pots', 'Total'
@@ -136,22 +121,27 @@ report_table = pd.DataFrame(columns=[
 
 # Add data to report table
 for service in ['Lunch', 'Dinner']:
-    service_data = report_df[report_df['Service'] == service]
+    service_data = report_df[report_df['Service'] == service].copy()
 
     # Add service rows
     report_table = pd.concat([report_table, service_data])
 
-    # Add service total
-    service_total = service_data.sum(numeric_only=True)
+    # Calculate service total
+    numeric_cols = ['1/2 Chix', '1/2 Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Full Ribs', 'Grits', 'Pots', 'Total']
+    service_total = service_data[numeric_cols].sum()
     service_total['Service'] = f'{service} Total'
     service_total['Interval'] = ''
     report_table = pd.concat([report_table, pd.DataFrame([service_total])])
 
-# Add grand total
-grand_total = report_df.sum(numeric_only=True)
+# Calculate and add grand total
+grand_total = report_df[numeric_cols].sum()
 grand_total['Service'] = 'Total'
 grand_total['Interval'] = ''
 report_table = pd.concat([report_table, pd.DataFrame([grand_total])])
+
+# Ensure all numeric columns are properly formatted as integers
+for col in numeric_cols:
+    report_table[col] = pd.to_numeric(report_table[col], errors='coerce').fillna(0).astype(int)
 
 # Display the report
 st.dataframe(
@@ -169,6 +159,6 @@ st.dataframe(
         'Full Ribs': st.column_config.NumberColumn('Full Ribs', format='%d'),
         'Grits': st.column_config.NumberColumn('Grits', format='%d'),
         'Pots': st.column_config.NumberColumn('Pots', format='%d'),
-        'Total': st.column_config.NumberColumn('Total', format='%d'),
+        'Total': st.column_config.NumberColumn('Total', format='%d')
     }
 )

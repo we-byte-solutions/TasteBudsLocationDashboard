@@ -7,11 +7,20 @@ import openpyxl
 def load_category_mappings():
     """Load category mappings from Excel file"""
     try:
-        # Read both sheets from excel
-        items_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=0)
-        modifiers_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=1)
+        # Read both sheets from excel with explicit column names
+        workbook = pd.ExcelFile('attached_assets/Categories Current.xlsx')
 
-        # Create mappings from the first two columns of each sheet
+        # Read sheets assuming the first column is the item/modifier name and second is the category
+        items_df = pd.read_excel(workbook, sheet_name=0, usecols=[0, 1])
+        modifiers_df = pd.read_excel(workbook, sheet_name=1, usecols=[0, 1])
+
+        # Convert all strings to proper format for matching
+        items_df.iloc[:, 0] = items_df.iloc[:, 0].astype(str).str.strip()
+        items_df.iloc[:, 1] = items_df.iloc[:, 1].astype(str).str.strip()
+        modifiers_df.iloc[:, 0] = modifiers_df.iloc[:, 0].astype(str).str.strip()
+        modifiers_df.iloc[:, 1] = modifiers_df.iloc[:, 1].astype(str).str.strip()
+
+        # Create mappings
         items_dict = dict(zip(items_df.iloc[:, 0], items_df.iloc[:, 1]))
         modifiers_dict = dict(zip(modifiers_df.iloc[:, 0], modifiers_df.iloc[:, 1]))
 
@@ -50,15 +59,9 @@ def load_data(items_file, modifiers_file):
         items_df['Order Date'] = pd.to_datetime(items_df['Order Date'])
         modifiers_df['Order Date'] = pd.to_datetime(modifiers_df['Order Date'])
 
-        # Convert Qty columns to numeric, replacing non-numeric values with 0
+        # Convert Qty columns to numeric
         items_df['Qty'] = pd.to_numeric(items_df['Qty'], errors='coerce').fillna(0)
         modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'], errors='coerce').fillna(0)
-
-        # Debug information
-        st.sidebar.write("Items DataFrame Info:")
-        st.sidebar.write(f"Total rows: {len(items_df)}")
-        st.sidebar.write("Qty column dtype:", items_df['Qty'].dtype)
-        st.sidebar.write("Sample Qty values:", items_df['Qty'].head())
 
         return items_df, modifiers_df
     except Exception as e:
@@ -90,15 +93,6 @@ def calculate_category_counts(items_df, modifiers_df=None):
     # Load category mappings
     items_mapping, modifiers_mapping = load_category_mappings()
 
-    # Debug info
-    st.sidebar.write("Debug - Items Data Sample:")
-    if not items_df.empty:
-        st.sidebar.write(items_df[['Menu Item', 'Qty']].head())
-
-    st.sidebar.write("Debug - Modifiers Data Sample:")
-    if modifiers_df is not None and not modifiers_df.empty:
-        st.sidebar.write(modifiers_df[['Modifier', 'Qty']].head())
-
     # Initialize categories with zeros
     categories = {
         '1/2 Chix': 0,
@@ -115,32 +109,23 @@ def calculate_category_counts(items_df, modifiers_df=None):
     if not items_df.empty:
         for _, row in items_df.iterrows():
             menu_item = str(row['Menu Item']).strip()
+            qty = float(row['Qty'])
+
             if menu_item in items_mapping:
                 category = items_mapping[menu_item]
                 if category in categories:
-                    try:
-                        qty = float(row['Qty'])
-                        categories[category] += qty
-                    except (ValueError, TypeError):
-                        st.sidebar.warning(f"Invalid Qty value for {menu_item}: {row['Qty']}")
+                    categories[category] += qty
 
     # Process modifiers
     if modifiers_df is not None and not modifiers_df.empty:
         for _, row in modifiers_df.iterrows():
             modifier = str(row['Modifier']).strip()
+            qty = float(row['Qty'])
+
             if modifier in modifiers_mapping:
                 category = modifiers_mapping[modifier]
                 if category in categories:
-                    try:
-                        qty = float(row['Qty'])
-                        categories[category] += qty
-                    except (ValueError, TypeError):
-                        st.sidebar.warning(f"Invalid Qty value for {modifier}: {row['Qty']}")
-
-    # Debug the mappings and final counts
-    st.sidebar.write("Debug - Items mapping sample:", dict(list(items_mapping.items())[:5]))
-    st.sidebar.write("Debug - Modifiers mapping sample:", dict(list(modifiers_mapping.items())[:5]))
-    st.sidebar.write("Debug - Final category counts:", categories)
+                    categories[category] += qty
 
     # Convert float quantities to integers
     categories = {k: int(v) for k, v in categories.items()}
