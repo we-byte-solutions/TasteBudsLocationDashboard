@@ -7,16 +7,13 @@ import openpyxl
 def load_category_mappings():
     """Load category mappings from Excel file"""
     try:
-        workbook = openpyxl.load_workbook('attached_assets/Categories Current.xlsx')
-        sheet_names = workbook.sheetnames
+        # Read both sheets from excel
+        items_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=0)
+        modifiers_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=1)
 
-        # Read the workbook using pandas
-        items_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=sheet_names[0])
-        modifiers_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=sheet_names[1])
-
-        # Convert mappings to dictionaries for easier lookup
-        items_dict = dict(zip(items_df.iloc[:, 0], items_df.iloc[:, 1]))  # First two columns
-        modifiers_dict = dict(zip(modifiers_df.iloc[:, 0], modifiers_df.iloc[:, 1]))  # First two columns
+        # Create mappings from the first two columns of each sheet
+        items_dict = dict(zip(items_df.iloc[:, 0], items_df.iloc[:, 1]))
+        modifiers_dict = dict(zip(modifiers_df.iloc[:, 0], modifiers_df.iloc[:, 1]))
 
         return items_dict, modifiers_dict
     except Exception as e:
@@ -79,7 +76,7 @@ def get_service_periods(df):
     return df
 
 def calculate_category_counts(items_df, modifiers_df=None):
-    """Calculate category counts using Qty and mappings from Excel"""
+    """Calculate category counts using Qty values from both dataframes"""
     # Load category mappings
     items_mapping, modifiers_mapping = load_category_mappings()
 
@@ -96,6 +93,7 @@ def calculate_category_counts(items_df, modifiers_df=None):
 
     # Process items
     if not items_df.empty:
+        # Group by Menu Item and sum quantities
         for item_name, group in items_df.groupby('Menu Item'):
             if item_name in items_mapping:
                 category = items_mapping[item_name]
@@ -104,33 +102,35 @@ def calculate_category_counts(items_df, modifiers_df=None):
 
     # Process modifiers
     if modifiers_df is not None and not modifiers_df.empty:
+        # Group by Modifier and sum quantities
         for modifier_name, group in modifiers_df.groupby('Modifier'):
             if modifier_name in modifiers_mapping:
                 category = modifiers_mapping[modifier_name]
                 if category in categories:
                     categories[category] += group['Qty'].sum()
 
+    # Convert float quantities to integers
+    categories = {k: int(v) for k, v in categories.items()}
     return categories
 
 def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
     """Generate report data with all required calculations"""
-    if items_df is None:
+    if items_df is None or items_df.empty:
         return pd.DataFrame()
 
     items_df = create_time_intervals(items_df, interval_minutes)
     items_df = get_service_periods(items_df)
 
-    if modifiers_df is not None:
+    if modifiers_df is not None and not modifiers_df.empty:
         modifiers_df = create_time_intervals(modifiers_df, interval_minutes)
         modifiers_df = get_service_periods(modifiers_df)
 
     report_data = []
-
     for service in ['Lunch', 'Dinner']:
         service_items_df = items_df[items_df['Service'] == service]
         service_modifiers_df = modifiers_df[modifiers_df['Service'] == service] if modifiers_df is not None else None
-        intervals = sorted(service_items_df['Interval'].unique())
 
+        intervals = sorted(service_items_df['Interval'].unique())
         for interval in intervals:
             interval_items_df = service_items_df[service_items_df['Interval'] == interval]
             interval_modifiers_df = service_modifiers_df[service_modifiers_df['Interval'] == interval] if service_modifiers_df is not None else None
