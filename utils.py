@@ -106,39 +106,39 @@ def calculate_category_counts(items_df, modifiers_df=None):
 
     # Process items from ItemSelectionDetails
     if not items_df.empty:
-        grouped_items = items_df.groupby('Menu Item')['Qty'].sum()
-        for menu_item, total_qty in grouped_items.items():
-            menu_item = str(menu_item).strip()
+        for _, row in items_df.iterrows():
+            menu_item = str(row['Menu Item']).strip()
+            qty = float(row['Qty'])
 
             # Count based on menu item names
             if '1/2 Chicken' in menu_item:
-                categories['1/2 Chix'] += total_qty
-            elif 'Dry Ribs' in menu_item or 'Thai Ribs' in menu_item:
+                categories['1/2 Chix'] += 1
+            if 'Dry Ribs' in menu_item or 'Thai Ribs' in menu_item:
                 if '(8)' in menu_item:
-                    categories['Full Ribs'] += total_qty
+                    categories['Full Ribs'] += 1
                 elif '(4)' in menu_item:
-                    categories['1/2 Ribs'] += total_qty
+                    categories['1/2 Ribs'] += 1
 
     # Process modifiers from ModifiersSelectionDetails
     if modifiers_df is not None and not modifiers_df.empty:
-        grouped_modifiers = modifiers_df.groupby('Modifier')['Qty'].sum()
-        for modifier, total_qty in grouped_modifiers.items():
-            modifier = str(modifier).strip()
+        for _, row in modifiers_df.iterrows():
+            modifier = str(row['Modifier']).strip()
+            qty = float(row['Qty'])
 
             # Count based on modifier names
             if '*Roasted Corn Grits' in modifier:
-                categories['Grits'] += total_qty
-            elif '6oz' in modifier:
-                categories['6oz Mod'] += total_qty
-            elif '8oz' in modifier:
-                categories['8oz Mod'] += total_qty
-            elif 'Corn' in modifier:
-                categories['Corn'] += total_qty
-            elif '*Potatoes' in modifier or 'Pots' in modifier:
-                categories['Pots'] += total_qty
+                categories['Grits'] += 1
+            if '6oz' in modifier:
+                categories['6oz Mod'] += 1
+            if '8oz' in modifier:
+                categories['8oz Mod'] += 1
+            if 'Corn' in modifier:
+                categories['Corn'] += 1
+            if '*Potatoes' in modifier or 'Pots' in modifier:
+                categories['Pots'] += 1
 
     # Convert all counts to integers
-    return {k: int(v) for k, v in categories.items()}
+    return categories
 
 def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
     """Generate report data with all required calculations"""
