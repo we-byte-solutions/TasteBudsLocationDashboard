@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import utils
+from PIL import Image
 
 # Page config
 st.set_page_config(
@@ -99,7 +100,10 @@ interval_minutes = 30 if interval == '30 minutes' else 60
 report_df = utils.generate_report_data(filtered_df, interval_minutes)
 
 # Display logo
-st.markdown('<div class="logo-container"><img src="attached_assets/image_1740704103897.png" alt="Logo"></div>', unsafe_allow_html=True)
+logo = Image.open('attached_assets/image_1740704103897.png')
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.image(logo, use_container_width=True)
 
 # Display report header
 st.markdown(f'<h1 class="report-title">{selected_location}</h1>', unsafe_allow_html=True)
