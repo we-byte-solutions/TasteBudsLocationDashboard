@@ -96,10 +96,10 @@ def calculate_category_counts(items_df, modifiers_df=None):
     categories = {
         '1/2 Chix': 0,
         '1/2 Ribs': 0,
+        'Full Ribs': 0,
         '6oz Mod': 0,
         '8oz Mod': 0,
         'Corn': 0,
-        'Full Ribs': 0,
         'Grits': 0,
         'Pots': 0
     }
@@ -108,7 +108,13 @@ def calculate_category_counts(items_df, modifiers_df=None):
     if not items_df.empty:
         for _, row in items_df.iterrows():
             menu_item = str(row['Menu Item']).strip()
-            qty = float(row['Qty'])
+            plu = str(row.get('PLU', '')).strip()
+
+            # Special case for PLUs that count in multiple categories
+            if plu in ['3009', '81831']:
+                categories['1/2 Chix'] += 1
+                categories['1/2 Ribs'] += 1
+                continue
 
             # Count based on menu item names
             if '1/2 Chicken' in menu_item:
@@ -123,21 +129,23 @@ def calculate_category_counts(items_df, modifiers_df=None):
     if modifiers_df is not None and not modifiers_df.empty:
         for _, row in modifiers_df.iterrows():
             modifier = str(row['Modifier']).strip()
-            qty = float(row['Qty'])
+            modifier_plu = str(row.get('Modifier PLU', '')).strip()
 
-            # Count based on modifier names
+            # Check modifiers
+            if 'Corn' in modifier and not 'Grits' in modifier:
+                categories['Corn'] += 1
             if '*Roasted Corn Grits' in modifier:
                 categories['Grits'] += 1
             if '6oz' in modifier:
                 categories['6oz Mod'] += 1
             if '8oz' in modifier:
                 categories['8oz Mod'] += 1
-            if 'Corn' in modifier:
-                categories['Corn'] += 1
-            if '*Potatoes' in modifier or 'Pots' in modifier:
+            if '*Potatoes' in modifier or 'Pots' in modifier or modifier_plu == '2310':
                 categories['Pots'] += 1
 
-    # Convert all counts to integers
+    # Debug information
+    st.sidebar.write("Category Counts:", categories)
+
     return categories
 
 def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
