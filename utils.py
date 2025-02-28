@@ -50,6 +50,10 @@ def load_data(items_file, modifiers_file):
         items_df['Order Date'] = pd.to_datetime(items_df['Order Date'])
         modifiers_df['Order Date'] = pd.to_datetime(modifiers_df['Order Date'])
 
+        # Convert Qty columns to numeric
+        items_df['Qty'] = pd.to_numeric(items_df['Qty'], errors='coerce').fillna(0)
+        modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'], errors='coerce').fillna(0)
+
         return items_df, modifiers_df
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
@@ -80,6 +84,11 @@ def calculate_category_counts(items_df, modifiers_df=None):
     # Load category mappings
     items_mapping, modifiers_mapping = load_category_mappings()
 
+    # For debugging
+    st.sidebar.write("Debug - Category Mappings:")
+    st.sidebar.write("Items mapping sample:", dict(list(items_mapping.items())[:5]))
+    st.sidebar.write("Modifiers mapping sample:", dict(list(modifiers_mapping.items())[:5]))
+
     # Initialize categories with zeros
     categories = {
         '1/2 Chix': 0,
@@ -94,30 +103,30 @@ def calculate_category_counts(items_df, modifiers_df=None):
 
     # Process items
     if not items_df.empty:
-        # Group by Menu Item and sum quantities
         for _, row in items_df.iterrows():
-            if row['Menu Item'] in items_mapping:
-                category = items_mapping[row['Menu Item']]
+            menu_item = row['Menu Item']
+            if menu_item in items_mapping:
+                category = items_mapping[menu_item]
                 if category in categories:
-                    # Ensure Qty is treated as numeric
-                    qty = pd.to_numeric(row['Qty'], errors='coerce')
-                    if not pd.isna(qty):
-                        categories[category] += qty
+                    qty = float(row['Qty'])
+                    categories[category] += qty
 
     # Process modifiers
     if modifiers_df is not None and not modifiers_df.empty:
-        # Group by Modifier and sum quantities
         for _, row in modifiers_df.iterrows():
-            if row['Modifier'] in modifiers_mapping:
-                category = modifiers_mapping[row['Modifier']]
+            modifier = row['Modifier']
+            if modifier in modifiers_mapping:
+                category = modifiers_mapping[modifier]
                 if category in categories:
-                    # Ensure Qty is treated as numeric
-                    qty = pd.to_numeric(row['Qty'], errors='coerce')
-                    if not pd.isna(qty):
-                        categories[category] += qty
+                    qty = float(row['Qty'])
+                    categories[category] += qty
 
     # Convert float quantities to integers
     categories = {k: int(v) for k, v in categories.items()}
+
+    # Debug: Print final categories
+    st.sidebar.write("Debug - Final Category Counts:", categories)
+
     return categories
 
 def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
