@@ -8,19 +8,17 @@ def load_category_mappings():
     """Load category mappings from Excel file"""
     try:
         # Read both sheets from Excel file
-        workbook = pd.ExcelFile('attached_assets/Categories Current.xlsx')
+        items_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=0)
+        modifiers_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=1)
 
-        # Read the first two columns from each sheet
-        items_df = pd.read_excel(workbook, sheet_name=0, usecols=[0, 1])
-        modifiers_df = pd.read_excel(workbook, sheet_name=1, usecols=[0, 1])
+        # Print debug information
+        st.sidebar.write("Debug - Excel Sheets:")
+        st.sidebar.write("Items sheet columns:", items_df.columns.tolist())
+        st.sidebar.write("Sample items data:", items_df.head())
+        st.sidebar.write("Modifiers sheet columns:", modifiers_df.columns.tolist())
+        st.sidebar.write("Sample modifiers data:", modifiers_df.head())
 
-        # Clean and standardize the values
-        items_df.iloc[:, 0] = items_df.iloc[:, 0].astype(str).str.strip()
-        items_df.iloc[:, 1] = items_df.iloc[:, 1].astype(str).str.strip()
-        modifiers_df.iloc[:, 0] = modifiers_df.iloc[:, 0].astype(str).str.strip()
-        modifiers_df.iloc[:, 1] = modifiers_df.iloc[:, 1].astype(str).str.strip()
-
-        # Create mappings
+        # Create mappings from the first two columns
         items_dict = dict(zip(items_df.iloc[:, 0], items_df.iloc[:, 1]))
         modifiers_dict = dict(zip(modifiers_df.iloc[:, 0], modifiers_df.iloc[:, 1]))
 
@@ -74,7 +72,6 @@ def get_service_periods(df):
 
 def calculate_category_counts(items_df, modifiers_df=None):
     """Calculate category counts using Qty values"""
-    # Initialize categories with zeros
     categories = {
         '1/2 Chix': 0,
         '1/2 Ribs': 0,
@@ -86,30 +83,35 @@ def calculate_category_counts(items_df, modifiers_df=None):
         'Pots': 0
     }
 
+    # Debug current data
+    st.sidebar.write("Debug - Input Data:")
+    st.sidebar.write("Items shape:", items_df.shape if items_df is not None else "None")
+    st.sidebar.write("Modifiers shape:", modifiers_df.shape if modifiers_df is not None else "None")
+
     # Load category mappings
     items_mapping, modifiers_mapping = load_category_mappings()
 
     # Process items
     if not items_df.empty:
-        # Group by Menu Item and sum quantities
-        for item_name, group in items_df.groupby('Menu Item'):
+        for item_name, qty in zip(items_df['Menu Item'], items_df['Qty']):
             item_name = str(item_name).strip()
             if item_name in items_mapping:
                 category = items_mapping[item_name]
                 if category in categories:
-                    categories[category] += group['Qty'].sum()
+                    categories[category] += float(qty)
 
     # Process modifiers
     if modifiers_df is not None and not modifiers_df.empty:
-        # Group by Modifier and sum quantities
-        for modifier_name, group in modifiers_df.groupby('Modifier'):
+        for modifier_name, qty in zip(modifiers_df['Modifier'], modifiers_df['Qty']):
             modifier_name = str(modifier_name).strip()
             if modifier_name in modifiers_mapping:
                 category = modifiers_mapping[modifier_name]
                 if category in categories:
-                    categories[category] += group['Qty'].sum()
+                    categories[category] += float(qty)
 
-    # Convert to integers
+    # Debug final counts
+    st.sidebar.write("Debug - Category Counts:", categories)
+
     return {k: int(v) for k, v in categories.items()}
 
 def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
