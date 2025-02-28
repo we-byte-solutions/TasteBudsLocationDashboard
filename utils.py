@@ -17,7 +17,7 @@ def load_data(items_file, modifiers_file):
         modifiers_df = pd.read_csv(modifiers_file)
 
         # Validate required columns
-        items_required_columns = ['Location', 'Order Date', 'Menu Item', 'Menu', 'Item Id']
+        items_required_columns = ['Location', 'Order Date', 'Menu Item', 'Menu', 'Master Id']
         valid_items, message = validate_csv_format(items_df, items_required_columns)
         if not valid_items:
             st.error(f"Invalid items file format: {message}")
@@ -58,18 +58,18 @@ def get_service_periods(df):
     return df
 
 def calculate_category_counts(df):
-    """Calculate counts for each category"""
+    """Calculate counts for each category using Master Id"""
     categories = {
         '1/2 Chix': df[df['Menu Item'].str.contains('Chicken', na=False) & 
-                       (df['Menu'].str.contains('Lunch|Dinner', na=False))]['Item Id'].nunique(),
+                       (df['Menu'].str.contains('Lunch|Dinner', na=False))]['Master Id'].nunique(),
         '1/2 Ribs': df[df['Menu Item'].str.contains('Ribs', na=False) & 
-                       (df['Menu'].str.contains('Lunch|Dinner', na=False))]['Item Id'].nunique(),
-        '6oz Mod': df[df['Menu Item'].str.contains('6oz|6 oz', na=False)]['Item Id'].nunique(),
-        '8oz Mod': df[df['Menu Item'].str.contains('8oz|8 oz', na=False)]['Item Id'].nunique(),
-        'Corn': df[df['Menu Item'].str.contains('Corn', na=False)]['Item Id'].nunique(),
-        'Full Ribs': df[df['Menu Item'].str.contains('Full.*Ribs|Ribs.*Full', na=False)]['Item Id'].nunique(),
-        'Grits': df[df['Menu Item'].str.contains('Grits', na=False)]['Item Id'].nunique(),
-        'Pots': df[df['Menu Item'].str.contains('Pot', na=False)]['Item Id'].nunique()
+                       (df['Menu'].str.contains('Lunch|Dinner', na=False))]['Master Id'].nunique(),
+        '6oz Mod': df[df['Menu Item'].str.contains('6oz|6 oz', na=False)]['Master Id'].nunique(),
+        '8oz Mod': df[df['Menu Item'].str.contains('8oz|8 oz', na=False)]['Master Id'].nunique(),
+        'Corn': df[df['Menu Item'].str.contains('Corn', na=False)]['Master Id'].nunique(),
+        'Full Ribs': df[df['Menu Item'].str.contains('Full.*Ribs|Ribs.*Full', na=False)]['Master Id'].nunique(),
+        'Grits': df[df['Menu Item'].str.contains('Grits', na=False)]['Master Id'].nunique(),
+        'Pots': df[df['Menu Item'].str.contains('Pot', na=False)]['Master Id'].nunique()
     }
     return categories
 
