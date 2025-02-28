@@ -98,6 +98,9 @@ filtered_df = st.session_state.items_df[
 interval_minutes = 30 if interval == '30 minutes' else 60
 report_df = utils.generate_report_data(filtered_df, interval_minutes)
 
+# Display logo
+st.markdown('<div class="logo-container"><img src="attached_assets/image_1740704103897.png" alt="Logo"></div>', unsafe_allow_html=True)
+
 # Display report header
 st.markdown(f'<h1 class="report-title">{selected_location}</h1>', unsafe_allow_html=True)
 st.markdown(f'<h2 class="report-title">{selected_date.strftime("%m/%d/%Y")}</h2>', unsafe_allow_html=True)

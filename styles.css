@@ -24,3 +24,14 @@ div[data-testid="stTable"] {
     text-align: center;
     margin-bottom: 2rem;
 }
+
+.logo-container {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding: 1rem;
+}
+
+.logo-container img {
+    max-width: 300px;
+    height: auto;
+}
