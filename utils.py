@@ -9,7 +9,6 @@ def load_category_mappings():
     try:
         workbook = openpyxl.load_workbook('attached_assets/Categories Current.xlsx')
         sheet_names = workbook.sheetnames
-        st.write(f"Available sheets: {sheet_names}")  # Debug info
 
         # Read the workbook using pandas
         items_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=sheet_names[0])
