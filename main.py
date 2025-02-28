@@ -13,19 +13,43 @@ st.set_page_config(
 with open('styles.css') as f:
     st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
-# Load data
-items_df, modifiers_df = utils.load_data('attached_assets/ItemSelectionDetails.csv',
-                                       'attached_assets/ModifiersSelectionDetails.csv')
+# Initialize session state for data
+if 'items_df' not in st.session_state:
+    st.session_state.items_df = None
+if 'modifiers_df' not in st.session_state:
+    st.session_state.modifiers_df = None
 
-# Sidebar filters
+# Sidebar
+st.sidebar.title('Data Upload')
+
+# File upload section
+items_file = st.sidebar.file_uploader("Upload Items CSV", type=['csv'])
+modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV", type=['csv'])
+
+# Load data when files are uploaded
+if items_file and modifiers_file:
+    items_df, modifiers_df = utils.load_data(items_file, modifiers_file)
+    if items_df is not None and modifiers_df is not None:
+        st.session_state.items_df = items_df
+        st.session_state.modifiers_df = modifiers_df
+        st.sidebar.success('Files uploaded successfully!')
+
+# If no data is uploaded, use sample data
+if st.session_state.items_df is None:
+    st.session_state.items_df, st.session_state.modifiers_df = utils.load_data(
+        'attached_assets/ItemSelectionDetails.csv',
+        'attached_assets/ModifiersSelectionDetails.csv'
+    )
+
+# Filters section
 st.sidebar.title('Filters')
 
 # Location filter
-locations = items_df['Location'].unique()
+locations = st.session_state.items_df['Location'].unique()
 selected_location = st.sidebar.selectbox('Location', locations)
 
 # Date filter
-dates = items_df['Order Date'].dt.date.unique()
+dates = st.session_state.items_df['Order Date'].dt.date.unique()
 selected_date = st.sidebar.date_input(
     'Date',
     value=dates[0],
@@ -41,9 +65,9 @@ interval = st.sidebar.radio(
 )
 
 # Filter data
-filtered_df = items_df[
-    (items_df['Location'] == selected_location) &
-    (items_df['Order Date'].dt.date == selected_date)
+filtered_df = st.session_state.items_df[
+    (st.session_state.items_df['Location'] == selected_location) &
+    (st.session_state.items_df['Order Date'].dt.date == selected_date)
 ]
 
 # Generate report
@@ -64,10 +88,10 @@ report_table = pd.DataFrame(columns=[
 # Add data to report table
 for service in ['Lunch', 'Dinner']:
     service_data = report_df[report_df['Service'] == service]
-    
+
     # Add service rows
     report_table = pd.concat([report_table, service_data])
-    
+
     # Add service total
     service_total = service_data.sum(numeric_only=True)
     service_total['Service'] = f'{service} Total'
