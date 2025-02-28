@@ -17,13 +17,13 @@ def load_data(items_file, modifiers_file):
         modifiers_df = pd.read_csv(modifiers_file)
 
         # Validate required columns
-        items_required_columns = ['Location', 'Order Date', 'Item Selection Id', 'PLU']
+        items_required_columns = ['Location', 'Order Date', 'Item Selection Id', 'PLU', 'Qty']
         valid_items, message = validate_csv_format(items_df, items_required_columns)
         if not valid_items:
             st.error(f"Invalid items file format: {message}")
             return None, None
 
-        modifiers_required_columns = ['Location', 'Order Date', 'Modifier PLU']
+        modifiers_required_columns = ['Location', 'Order Date', 'Modifier PLU', 'Qty']
         valid_modifiers, message = validate_csv_format(modifiers_df, modifiers_required_columns)
         if not valid_modifiers:
             st.error(f"Invalid modifiers file format: {message}")
@@ -71,7 +71,7 @@ PLU_CATEGORY_MAP = {
 }
 
 def calculate_category_counts(items_df, modifiers_df=None):
-    """Calculate counts for each category using PLU"""
+    """Calculate category totals using Qty field"""
     categories = {
         '1/2 Chix': 0,
         '1/2 Ribs': 0,
@@ -83,23 +83,23 @@ def calculate_category_counts(items_df, modifiers_df=None):
         'Pots': 0
     }
 
-    # Count items based on PLU
+    # Sum quantities from items based on PLU
     if 'PLU' in items_df.columns:
         for plu in items_df['PLU'].dropna().unique():
             if str(plu) in PLU_CATEGORY_MAP:
                 category = PLU_CATEGORY_MAP[str(plu)]
-                count = len(items_df[items_df['PLU'] == plu])
+                qty_sum = items_df[items_df['PLU'] == plu]['Qty'].sum()
                 if category in categories:
-                    categories[category] += count
+                    categories[category] += qty_sum
 
-    # Count modifiers based on Modifier PLU
+    # Sum quantities from modifiers based on Modifier PLU
     if modifiers_df is not None and 'Modifier PLU' in modifiers_df.columns:
         for plu in modifiers_df['Modifier PLU'].dropna().unique():
             if str(plu) in PLU_CATEGORY_MAP:
                 category = PLU_CATEGORY_MAP[str(plu)]
-                count = len(modifiers_df[modifiers_df['Modifier PLU'] == plu])
+                qty_sum = modifiers_df[modifiers_df['Modifier PLU'] == plu]['Qty'].sum()
                 if category in categories:
-                    categories[category] += count
+                    categories[category] += qty_sum
 
     return categories
 
