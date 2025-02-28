@@ -96,21 +96,19 @@ def calculate_category_counts(items_df, modifiers_df=None):
 
     # Process items
     if not items_df.empty:
-        for menu_item in items_df['Menu Item'].unique():
-            if menu_item in items_mapping:
-                category = items_mapping[menu_item]
+        for item_name, group in items_df.groupby('Menu Item'):
+            if item_name in items_mapping:
+                category = items_mapping[item_name]
                 if category in categories:
-                    qty = items_df[items_df['Menu Item'] == menu_item]['Qty'].sum()
-                    categories[category] += qty
+                    categories[category] += group['Qty'].sum()
 
     # Process modifiers
     if modifiers_df is not None and not modifiers_df.empty:
-        for modifier in modifiers_df['Modifier'].unique():
-            if modifier in modifiers_mapping:
-                category = modifiers_mapping[modifier]
+        for modifier_name, group in modifiers_df.groupby('Modifier'):
+            if modifier_name in modifiers_mapping:
+                category = modifiers_mapping[modifier_name]
                 if category in categories:
-                    qty = modifiers_df[modifiers_df['Modifier'] == modifier]['Qty'].sum()
-                    categories[category] += qty
+                    categories[category] += group['Qty'].sum()
 
     return categories
 
