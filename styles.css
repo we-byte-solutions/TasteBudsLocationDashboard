@@ -26,12 +26,13 @@ div[data-testid="stTable"] {
 }
 
 .logo-container {
-    text-align: center;
+    text-align: left;
     margin-bottom: 2rem;
     padding: 1rem;
+    padding-left: calc(0.25in + 1rem);
 }
 
 .logo-container img {
-    max-width: 300px;
+    max-width: 150px;
     height: auto;
 }
