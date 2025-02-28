@@ -80,6 +80,7 @@ def calculate_category_counts(items_df, modifiers_df=None):
     # Load category mappings
     items_mapping, modifiers_mapping = load_category_mappings()
 
+    # Initialize categories with zeros
     categories = {
         '1/2 Chix': 0,
         '1/2 Ribs': 0,
@@ -94,20 +95,26 @@ def calculate_category_counts(items_df, modifiers_df=None):
     # Process items
     if not items_df.empty:
         # Group by Menu Item and sum quantities
-        for item_name, group in items_df.groupby('Menu Item'):
-            if item_name in items_mapping:
-                category = items_mapping[item_name]
+        for _, row in items_df.iterrows():
+            if row['Menu Item'] in items_mapping:
+                category = items_mapping[row['Menu Item']]
                 if category in categories:
-                    categories[category] += group['Qty'].sum()
+                    # Ensure Qty is treated as numeric
+                    qty = pd.to_numeric(row['Qty'], errors='coerce')
+                    if not pd.isna(qty):
+                        categories[category] += qty
 
     # Process modifiers
     if modifiers_df is not None and not modifiers_df.empty:
         # Group by Modifier and sum quantities
-        for modifier_name, group in modifiers_df.groupby('Modifier'):
-            if modifier_name in modifiers_mapping:
-                category = modifiers_mapping[modifier_name]
+        for _, row in modifiers_df.iterrows():
+            if row['Modifier'] in modifiers_mapping:
+                category = modifiers_mapping[row['Modifier']]
                 if category in categories:
-                    categories[category] += group['Qty'].sum()
+                    # Ensure Qty is treated as numeric
+                    qty = pd.to_numeric(row['Qty'], errors='coerce')
+                    if not pd.isna(qty):
+                        categories[category] += qty
 
     # Convert float quantities to integers
     categories = {k: int(v) for k, v in categories.items()}

@@ -100,6 +100,21 @@ filtered_modifiers_df = st.session_state.modifiers_df[
     (st.session_state.modifiers_df['Order Date'].dt.date == selected_date)
 ]
 
+# After filtering data
+st.sidebar.write("Debug Information:")
+st.sidebar.write(f"Number of items: {len(filtered_items_df)}")
+st.sidebar.write(f"Number of modifiers: {len(filtered_modifiers_df)}")
+
+# Check sample of quantities
+st.sidebar.write("Sample Item Quantities:")
+if not filtered_items_df.empty:
+    st.sidebar.write(filtered_items_df[['Menu Item', 'Qty']].head())
+
+st.sidebar.write("Sample Modifier Quantities:")
+if not filtered_modifiers_df.empty:
+    st.sidebar.write(filtered_modifiers_df[['Modifier', 'Qty']].head())
+
+
 # Generate report
 interval_minutes = 30 if interval == '30 minutes' else 60
 report_df = utils.generate_report_data(filtered_items_df, filtered_modifiers_df, interval_minutes)
