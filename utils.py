@@ -11,9 +11,9 @@ def load_category_mappings():
         items_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=0)
         modifiers_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=1)
 
-        # Create mappings from the first two columns of each sheet
-        items_dict = dict(zip(items_df.iloc[:, 0], items_df.iloc[:, 1]))
-        modifiers_dict = dict(zip(modifiers_df.iloc[:, 0], modifiers_df.iloc[:, 1]))
+        # Create mappings from PLU to Category
+        items_dict = dict(zip(items_df.iloc[:, 2], items_df.iloc[:, 1]))  # PLU to Category mapping
+        modifiers_dict = dict(zip(modifiers_df.iloc[:, 2], modifiers_df.iloc[:, 1]))  # PLU to Category mapping
 
         return items_dict, modifiers_dict
     except Exception as e:
@@ -34,13 +34,13 @@ def load_data(items_file, modifiers_file):
         modifiers_df = pd.read_csv(modifiers_file)
 
         # Validate required columns
-        items_required_columns = ['Location', 'Order Date', 'Menu Item', 'Menu', 'Item Selection Id', 'Qty']
+        items_required_columns = ['Location', 'Order Date', 'Menu Item', 'Menu', 'Item Selection Id', 'Qty', 'PLU']
         valid_items, message = validate_csv_format(items_df, items_required_columns)
         if not valid_items:
             st.error(f"Invalid items file format: {message}")
             return None, None
 
-        modifiers_required_columns = ['Location', 'Order Date', 'Modifier', 'Qty']
+        modifiers_required_columns = ['Location', 'Order Date', 'Modifier', 'Modifier PLU', 'Qty']
         valid_modifiers, message = validate_csv_format(modifiers_df, modifiers_required_columns)
         if not valid_modifiers:
             st.error(f"Invalid modifiers file format: {message}")
@@ -76,7 +76,7 @@ def get_service_periods(df):
     return df
 
 def calculate_category_counts(items_df, modifiers_df=None):
-    """Calculate category counts using Qty values from both dataframes"""
+    """Calculate category counts using PLU numbers and Qty values"""
     # Load category mappings
     items_mapping, modifiers_mapping = load_category_mappings()
 
@@ -93,27 +93,32 @@ def calculate_category_counts(items_df, modifiers_df=None):
 
     # Process items
     if not items_df.empty:
-        # Use 'Menu Item' for mapping and sum 'Qty'
-        for menu_item, group in items_df.groupby('Menu Item'):
-            category = items_mapping.get(menu_item)
-            if category in categories:
-                qty_sum = group['Qty'].astype(float).sum()
-                categories[category] += qty_sum
+        # Use PLU for mapping and sum Qty
+        for plu, group in items_df.groupby('PLU'):
+            if plu in items_mapping:
+                category = items_mapping[plu]
+                if category in categories:
+                    qty_sum = group['Qty'].astype(float).sum()
+                    categories[category] += qty_sum
 
     # Process modifiers
     if modifiers_df is not None and not modifiers_df.empty:
-        # Use 'Modifier' for mapping and sum 'Qty'
-        for modifier, group in modifiers_df.groupby('Modifier'):
-            category = modifiers_mapping.get(modifier)
-            if category in categories:
-                qty_sum = group['Qty'].astype(float).sum()
-                categories[category] += qty_sum
+        # Use Modifier PLU for mapping and sum Qty
+        for plu, group in modifiers_df.groupby('Modifier PLU'):
+            if plu in modifiers_mapping:
+                category = modifiers_mapping[plu]
+                if category in categories:
+                    qty_sum = group['Qty'].astype(float).sum()
+                    categories[category] += qty_sum
 
     # Convert float quantities to integers
     categories = {k: int(v) for k, v in categories.items()}
 
     # Debug print
     st.write("Debug - Category Totals:", categories)
+    st.write("Debug - Available PLUs in items:", items_df['PLU'].unique())
+    st.write("Debug - Available PLUs in modifiers:", modifiers_df['Modifier PLU'].unique())
+    st.write("Debug - Mapping PLUs:", list(items_mapping.keys()))
 
     return categories
 
