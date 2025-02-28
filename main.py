@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import utils
-from database import import_csv_to_db
 
 # Page config
 st.set_page_config(
@@ -14,45 +13,19 @@ st.set_page_config(
 with open('styles.css') as f:
     st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
-# Initialize session state for tracking last update
-if 'last_update' not in st.session_state:
-    st.session_state.last_update = None
-
-# File uploader for new data
-st.sidebar.title('Data Import')
-items_file = st.sidebar.file_uploader("Upload Items CSV", type=['csv'])
-modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV", type=['csv'])
-
-if items_file and modifiers_file:
-    if st.sidebar.button('Import Data'):
-        with st.spinner('Importing data...'):
-            # Save uploaded files temporarily
-            with open('temp_items.csv', 'wb') as f:
-                f.write(items_file.getvalue())
-            with open('temp_modifiers.csv', 'wb') as f:
-                f.write(modifiers_file.getvalue())
-
-            # Import to database
-            last_update = import_csv_to_db('temp_items.csv', 'temp_modifiers.csv')
-            st.session_state.last_update = last_update
-            st.success('Data imported successfully!')
-
 # Load data
-items_df, modifiers_df, last_update = utils.load_data()
-
-# Display last update time
-st.sidebar.markdown('---')
-st.sidebar.write('Last data update:', last_update.strftime('%Y-%m-%d %H:%M:%S'))
+items_df, modifiers_df = utils.load_data('attached_assets/ItemSelectionDetails.csv',
+                                       'attached_assets/ModifiersSelectionDetails.csv')
 
 # Sidebar filters
 st.sidebar.title('Filters')
 
 # Location filter
-locations = items_df['location'].unique()
+locations = items_df['Location'].unique()
 selected_location = st.sidebar.selectbox('Location', locations)
 
 # Date filter
-dates = items_df['order_date'].dt.date.unique()
+dates = items_df['Order Date'].dt.date.unique()
 selected_date = st.sidebar.date_input(
     'Date',
     value=dates[0],
@@ -69,8 +42,8 @@ interval = st.sidebar.radio(
 
 # Filter data
 filtered_df = items_df[
-    (items_df['location'] == selected_location) &
-    (items_df['order_date'].dt.date == selected_date)
+    (items_df['Location'] == selected_location) &
+    (items_df['Order Date'].dt.date == selected_date)
 ]
 
 # Generate report
@@ -91,10 +64,10 @@ report_table = pd.DataFrame(columns=[
 # Add data to report table
 for service in ['Lunch', 'Dinner']:
     service_data = report_df[report_df['Service'] == service]
-
+    
     # Add service rows
     report_table = pd.concat([report_table, service_data])
-
+    
     # Add service total
     service_total = service_data.sum(numeric_only=True)
     service_total['Service'] = f'{service} Total'
