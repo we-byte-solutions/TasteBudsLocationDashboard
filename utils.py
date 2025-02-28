@@ -93,28 +93,24 @@ def calculate_category_counts(items_df, modifiers_df=None):
 
     # Process items
     if not items_df.empty:
-        # Use 'Menu Item' for mapping and sum 'Qty'
-        for menu_item, group in items_df.groupby('Menu Item'):
-            category = items_mapping.get(menu_item)
-            if category in categories:
-                qty_sum = group['Qty'].astype(float).sum()
-                categories[category] += qty_sum
+        # Group by Menu Item and sum quantities
+        for item_name, group in items_df.groupby('Menu Item'):
+            if item_name in items_mapping:
+                category = items_mapping[item_name]
+                if category in categories:
+                    categories[category] += group['Qty'].sum()
 
     # Process modifiers
     if modifiers_df is not None and not modifiers_df.empty:
-        # Use 'Modifier' for mapping and sum 'Qty'
-        for modifier, group in modifiers_df.groupby('Modifier'):
-            category = modifiers_mapping.get(modifier)
-            if category in categories:
-                qty_sum = group['Qty'].astype(float).sum()
-                categories[category] += qty_sum
+        # Group by Modifier and sum quantities
+        for modifier_name, group in modifiers_df.groupby('Modifier'):
+            if modifier_name in modifiers_mapping:
+                category = modifiers_mapping[modifier_name]
+                if category in categories:
+                    categories[category] += group['Qty'].sum()
 
     # Convert float quantities to integers
     categories = {k: int(v) for k, v in categories.items()}
-
-    # Debug print
-    st.write("Debug - Category Totals:", categories)
-
     return categories
 
 def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
