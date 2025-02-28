@@ -108,28 +108,32 @@ def calculate_category_counts(items_df, modifiers_df=None):
     items_mapping, modifiers_mapping = load_category_mappings()
 
     # Debug
-    st.sidebar.write("Processing items with quantities:")
+    st.sidebar.write("Debug - Starting category count calculation")
+    st.sidebar.write("Initial categories:", categories)
 
     # Process items
     if not items_df.empty:
-        for _, row in items_df.iterrows():
-            menu_item = str(row['Menu Item']).strip()
+        grouped_items = items_df.groupby('Menu Item')['Qty'].sum()
+        for menu_item, total_qty in grouped_items.items():
+            menu_item = str(menu_item).strip()
             if menu_item in items_mapping:
                 category = items_mapping[menu_item]
-                qty = row['Qty']
-                categories[category] += qty
-                st.sidebar.write(f"Added {qty} to {category} from {menu_item}")
+                if category in categories:
+                    categories[category] += float(total_qty)
+                    st.sidebar.write(f"Added {total_qty} to {category} from item {menu_item}")
 
     # Process modifiers
     if modifiers_df is not None and not modifiers_df.empty:
-        for _, row in modifiers_df.iterrows():
-            modifier = str(row['Modifier']).strip()
+        grouped_modifiers = modifiers_df.groupby('Modifier')['Qty'].sum()
+        for modifier, total_qty in grouped_modifiers.items():
+            modifier = str(modifier).strip()
             if modifier in modifiers_mapping:
                 category = modifiers_mapping[modifier]
-                qty = row['Qty']
-                categories[category] += qty
-                st.sidebar.write(f"Added {qty} to {category} from {modifier}")
+                if category in categories:
+                    categories[category] += float(total_qty)
+                    st.sidebar.write(f"Added {total_qty} to {category} from modifier {modifier}")
 
+    st.sidebar.write("Final category counts:", categories)
     return {k: int(v) for k, v in categories.items()}
 
 def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
