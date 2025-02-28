@@ -7,22 +7,38 @@ import openpyxl
 def load_category_mappings():
     """Load category mappings from Excel file"""
     try:
-        # Read both sheets from Excel file
+        # Read the Excel file
         items_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=0)
         modifiers_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=1)
 
-        # Print debug information
-        st.sidebar.write("Debug - Excel Sheets:")
-        st.sidebar.write("Items sheet columns:", items_df.columns.tolist())
-        st.sidebar.write("Sample items data:", items_df.head())
-        st.sidebar.write("Modifiers sheet columns:", modifiers_df.columns.tolist())
-        st.sidebar.write("Sample modifiers data:", modifiers_df.head())
+        # Debug information
+        st.sidebar.write("Items Mapping from Excel:")
+        st.sidebar.write(items_df.head())
 
         # Create mappings from the first two columns
-        items_dict = dict(zip(items_df.iloc[:, 0], items_df.iloc[:, 1]))
-        modifiers_dict = dict(zip(modifiers_df.iloc[:, 0], modifiers_df.iloc[:, 1]))
+        items_mapping = {}
+        modifiers_mapping = {}
 
-        return items_dict, modifiers_dict
+        # Process items mappings
+        for idx, row in items_df.iterrows():
+            item_name = str(row.iloc[0]).strip()
+            category = str(row.iloc[1]).strip()
+            if category in ['1/2 Chix', '1/2 Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Full Ribs', 'Grits', 'Pots']:
+                items_mapping[item_name] = category
+
+        # Process modifiers mappings
+        for idx, row in modifiers_df.iterrows():
+            modifier_name = str(row.iloc[0]).strip()
+            category = str(row.iloc[1]).strip()
+            if category in ['1/2 Chix', '1/2 Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Full Ribs', 'Grits', 'Pots']:
+                modifiers_mapping[modifier_name] = category
+
+        # Debug the mappings
+        st.sidebar.write("Debug - Mapped Categories:")
+        st.sidebar.write("Items mappings sample:", dict(list(items_mapping.items())[:5]))
+        st.sidebar.write("Modifiers mappings sample:", dict(list(modifiers_mapping.items())[:5]))
+
+        return items_mapping, modifiers_mapping
     except Exception as e:
         st.error(f"Error loading category mappings: {str(e)}")
         return {}, {}
@@ -30,6 +46,7 @@ def load_category_mappings():
 def load_data(items_file, modifiers_file):
     """Load and preprocess sales data from CSV files"""
     try:
+        # Read CSV files
         items_df = pd.read_csv(items_file)
         modifiers_df = pd.read_csv(modifiers_file)
 
@@ -37,9 +54,13 @@ def load_data(items_file, modifiers_file):
         items_df['Order Date'] = pd.to_datetime(items_df['Order Date'])
         modifiers_df['Order Date'] = pd.to_datetime(modifiers_df['Order Date'])
 
-        # Convert Qty columns to numeric
+        # Convert Qty to numeric, replacing non-numeric values with 0
         items_df['Qty'] = pd.to_numeric(items_df['Qty'], errors='coerce').fillna(0)
         modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'], errors='coerce').fillna(0)
+
+        # Debug data
+        st.sidebar.write("Sample Menu Items and Quantities:")
+        st.sidebar.write(items_df[['Menu Item', 'Qty']].head())
 
         return items_df, modifiers_df
     except Exception as e:
@@ -83,34 +104,31 @@ def calculate_category_counts(items_df, modifiers_df=None):
         'Pots': 0
     }
 
-    # Debug current data
-    st.sidebar.write("Debug - Input Data:")
-    st.sidebar.write("Items shape:", items_df.shape if items_df is not None else "None")
-    st.sidebar.write("Modifiers shape:", modifiers_df.shape if modifiers_df is not None else "None")
-
-    # Load category mappings
+    # Load mappings
     items_mapping, modifiers_mapping = load_category_mappings()
+
+    # Debug
+    st.sidebar.write("Processing items with quantities:")
 
     # Process items
     if not items_df.empty:
-        for item_name, qty in zip(items_df['Menu Item'], items_df['Qty']):
-            item_name = str(item_name).strip()
-            if item_name in items_mapping:
-                category = items_mapping[item_name]
-                if category in categories:
-                    categories[category] += float(qty)
+        for _, row in items_df.iterrows():
+            menu_item = str(row['Menu Item']).strip()
+            if menu_item in items_mapping:
+                category = items_mapping[menu_item]
+                qty = row['Qty']
+                categories[category] += qty
+                st.sidebar.write(f"Added {qty} to {category} from {menu_item}")
 
     # Process modifiers
     if modifiers_df is not None and not modifiers_df.empty:
-        for modifier_name, qty in zip(modifiers_df['Modifier'], modifiers_df['Qty']):
-            modifier_name = str(modifier_name).strip()
-            if modifier_name in modifiers_mapping:
-                category = modifiers_mapping[modifier_name]
-                if category in categories:
-                    categories[category] += float(qty)
-
-    # Debug final counts
-    st.sidebar.write("Debug - Category Counts:", categories)
+        for _, row in modifiers_df.iterrows():
+            modifier = str(row['Modifier']).strip()
+            if modifier in modifiers_mapping:
+                category = modifiers_mapping[modifier]
+                qty = row['Qty']
+                categories[category] += qty
+                st.sidebar.write(f"Added {qty} to {category} from {modifier}")
 
     return {k: int(v) for k, v in categories.items()}
 
