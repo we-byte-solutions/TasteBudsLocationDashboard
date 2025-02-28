@@ -33,6 +33,10 @@ def load_data(items_file, modifiers_file):
         items_df['Order Date'] = pd.to_datetime(items_df['Order Date'])
         modifiers_df['Order Date'] = pd.to_datetime(modifiers_df['Order Date'])
 
+        # Ensure Qty is numeric
+        items_df['Qty'] = pd.to_numeric(items_df['Qty'], errors='coerce').fillna(0)
+        modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'], errors='coerce').fillna(0)
+
         return items_df, modifiers_df
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
@@ -40,6 +44,7 @@ def load_data(items_file, modifiers_file):
 
 def create_time_intervals(df, interval_minutes=60):
     """Create time intervals for the data"""
+    df = df.copy()  # Create a copy to avoid SettingWithCopyWarning
     df['Time'] = df['Order Date'].dt.strftime('%H:%M')
     df['Hour'] = df['Order Date'].dt.hour
     df['Minute'] = df['Order Date'].dt.minute
@@ -53,6 +58,7 @@ def create_time_intervals(df, interval_minutes=60):
 
 def get_service_periods(df):
     """Split data into Lunch and Dinner periods"""
+    df = df.copy()  # Create a copy to avoid SettingWithCopyWarning
     df['Service'] = df['Order Date'].dt.hour.apply(
         lambda x: 'Lunch' if 6 <= x < 16 else 'Dinner'
     )
@@ -84,13 +90,12 @@ def calculate_category_counts(items_df, modifiers_df=None):
     }
 
     # Sum quantities from items based on PLU
-    if 'PLU' in items_df.columns:
+    if items_df is not None and 'PLU' in items_df.columns:
         for plu in items_df['PLU'].dropna().unique():
             if str(plu) in PLU_CATEGORY_MAP:
                 category = PLU_CATEGORY_MAP[str(plu)]
                 qty_sum = items_df[items_df['PLU'] == plu]['Qty'].sum()
-                if category in categories:
-                    categories[category] += qty_sum
+                categories[category] += qty_sum
 
     # Sum quantities from modifiers based on Modifier PLU
     if modifiers_df is not None and 'Modifier PLU' in modifiers_df.columns:
@@ -98,8 +103,7 @@ def calculate_category_counts(items_df, modifiers_df=None):
             if str(plu) in PLU_CATEGORY_MAP:
                 category = PLU_CATEGORY_MAP[str(plu)]
                 qty_sum = modifiers_df[modifiers_df['Modifier PLU'] == plu]['Qty'].sum()
-                if category in categories:
-                    categories[category] += qty_sum
+                categories[category] += qty_sum
 
     return categories
 
@@ -120,7 +124,10 @@ def generate_report_data(items_df, modifiers_df, interval_minutes=60):
     for service in ['Lunch', 'Dinner']:
         service_items_df = items_df[items_df['Service'] == service]
         service_modifiers_df = modifiers_df[modifiers_df['Service'] == service] if modifiers_df is not None else None
-        intervals = sorted(service_items_df['Interval'].unique())
+
+        # Get all unique intervals from both dataframes
+        intervals = sorted(set(service_items_df['Interval'].unique()) | 
+                         set(service_modifiers_df['Interval'].unique() if service_modifiers_df is not None else []))
 
         for interval in intervals:
             interval_items_df = service_items_df[service_items_df['Interval'] == interval]
