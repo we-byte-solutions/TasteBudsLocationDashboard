@@ -117,7 +117,7 @@ def calculate_category_counts(items_df, modifiers_df=None):
                 continue
 
             # Count based on menu item names
-            if '1/2 Chicken' in menu_item:
+            if 'Rotisserie Chicken' in menu_item or '1/2 Chicken' in menu_item:
                 categories['1/2 Chix'] += 1
             if 'Dry Ribs' in menu_item or 'Thai Ribs' in menu_item:
                 if '(8)' in menu_item:
@@ -132,7 +132,7 @@ def calculate_category_counts(items_df, modifiers_df=None):
             modifier_plu = str(row.get('Modifier PLU', '')).strip()
 
             # Check modifiers
-            if 'Corn' in modifier and not 'Grits' in modifier:
+            if 'Corn' in modifier and 'Grits' not in modifier:
                 categories['Corn'] += 1
             if '*Roasted Corn Grits' in modifier:
                 categories['Grits'] += 1
@@ -140,7 +140,7 @@ def calculate_category_counts(items_df, modifiers_df=None):
                 categories['6oz Mod'] += 1
             if '8oz' in modifier:
                 categories['8oz Mod'] += 1
-            if '*Potatoes' in modifier or 'Pots' in modifier or modifier_plu == '2310':
+            if '*Zea Potatoes' in modifier or modifier_plu == '2310':
                 categories['Pots'] += 1
 
     # Debug information
