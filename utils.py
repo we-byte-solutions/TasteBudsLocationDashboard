@@ -89,22 +89,31 @@ def calculate_category_counts(items_df, modifiers_df=None):
         'Pots': 0
     }
 
+    # Debug information
+    st.write("Items DataFrame sample:", items_df[['PLU', 'Qty']].head() if items_df is not None else "No items data")
+    st.write("Modifiers DataFrame sample:", modifiers_df[['Modifier PLU', 'Qty']].head() if modifiers_df is not None else "No modifiers data")
+
     # Sum quantities from items based on PLU
     if items_df is not None and 'PLU' in items_df.columns:
         for plu in items_df['PLU'].dropna().unique():
-            if str(plu) in PLU_CATEGORY_MAP:
-                category = PLU_CATEGORY_MAP[str(plu)]
+            str_plu = str(plu)
+            if str_plu in PLU_CATEGORY_MAP:
+                category = PLU_CATEGORY_MAP[str_plu]
                 qty_sum = items_df[items_df['PLU'] == plu]['Qty'].sum()
-                categories[category] += qty_sum
+                categories[category] += float(qty_sum)
+                st.write(f"Adding {qty_sum} to {category} from items PLU {plu}")
 
     # Sum quantities from modifiers based on Modifier PLU
     if modifiers_df is not None and 'Modifier PLU' in modifiers_df.columns:
         for plu in modifiers_df['Modifier PLU'].dropna().unique():
-            if str(plu) in PLU_CATEGORY_MAP:
-                category = PLU_CATEGORY_MAP[str(plu)]
+            str_plu = str(plu)
+            if str_plu in PLU_CATEGORY_MAP:
+                category = PLU_CATEGORY_MAP[str_plu]
                 qty_sum = modifiers_df[modifiers_df['Modifier PLU'] == plu]['Qty'].sum()
-                categories[category] += qty_sum
+                categories[category] += float(qty_sum)
+                st.write(f"Adding {qty_sum} to {category} from modifiers PLU {plu}")
 
+    st.write("Final category totals:", categories)
     return categories
 
 def generate_report_data(items_df, modifiers_df, interval_minutes=60):
@@ -125,7 +134,7 @@ def generate_report_data(items_df, modifiers_df, interval_minutes=60):
         service_items_df = items_df[items_df['Service'] == service]
         service_modifiers_df = modifiers_df[modifiers_df['Service'] == service] if modifiers_df is not None else None
 
-        # Get all unique intervals from both dataframes
+        # Get all unique intervals
         intervals = sorted(set(service_items_df['Interval'].unique()) | 
                          set(service_modifiers_df['Interval'].unique() if service_modifiers_df is not None else []))
 
