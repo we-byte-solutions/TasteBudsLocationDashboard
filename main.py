@@ -19,54 +19,15 @@ if 'items_df' not in st.session_state:
     st.session_state.items_df = None
 if 'modifiers_df' not in st.session_state:
     st.session_state.modifiers_df = None
-if 'historical_items_df' not in st.session_state:
-    st.session_state.historical_items_df = None
-if 'historical_modifiers_df' not in st.session_state:
-    st.session_state.historical_modifiers_df = None
 
-# Sidebar
-st.sidebar.title('Data Upload')
-
-# File upload section
-items_file = st.sidebar.file_uploader("Upload Items CSV", type=['csv'])
-modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV", type=['csv'])
-
-# Load data when files are uploaded
-if items_file and modifiers_file:
-    new_items_df, new_modifiers_df = utils.load_data(items_file, modifiers_file)
-    if new_items_df is not None and new_modifiers_df is not None:
-        # Append new data to historical data
-        if st.session_state.historical_items_df is not None:
-            st.session_state.historical_items_df = pd.concat([st.session_state.historical_items_df, new_items_df])
-            st.session_state.historical_modifiers_df = pd.concat([st.session_state.historical_modifiers_df, new_modifiers_df])
-        else:
-            st.session_state.historical_items_df = new_items_df
-            st.session_state.historical_modifiers_df = new_modifiers_df
-
-        # Update current data
-        st.session_state.items_df = st.session_state.historical_items_df
-        st.session_state.modifiers_df = st.session_state.historical_modifiers_df
-
-        st.sidebar.success('Files uploaded successfully! Historical data updated.')
-
-# If no data is loaded, use sample data
+# Load sample data if no data is loaded
 if st.session_state.items_df is None:
     st.session_state.items_df, st.session_state.modifiers_df = utils.load_data(
         'attached_assets/ItemSelectionDetails.csv',
         'attached_assets/ModifiersSelectionDetails.csv'
     )
-    st.session_state.historical_items_df = st.session_state.items_df
-    st.session_state.historical_modifiers_df = st.session_state.modifiers_df
 
-# Clear historical data button
-if st.sidebar.button('Clear Historical Data'):
-    st.session_state.historical_items_df = None
-    st.session_state.historical_modifiers_df = None
-    st.session_state.items_df = None
-    st.session_state.modifiers_df = None
-    st.experimental_rerun()
-
-# Filters section
+# Sidebar filters
 st.sidebar.title('Filters')
 
 # Location filter
@@ -100,44 +61,6 @@ filtered_modifiers_df = st.session_state.modifiers_df[
     (st.session_state.modifiers_df['Order Date'].dt.date == selected_date)
 ]
 
-# Generate report
-interval_minutes = 30 if interval == '30 minutes' else 60
-def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
-    """Generate report data with all required calculations"""
-    if items_df is None or items_df.empty:
-        return pd.DataFrame()
-
-    # Create time intervals and service periods
-    items_df = create_time_intervals(items_df, interval_minutes)
-    items_df = get_service_periods(items_df)
-
-    if modifiers_df is not None and not modifiers_df.empty:
-        modifiers_df = create_time_intervals(modifiers_df, interval_minutes)
-        modifiers_df = get_service_periods(modifiers_df)
-
-    report_data = []
-    for service in ['Lunch', 'Dinner']:
-        service_items_df = items_df[items_df['Service'] == service]
-        service_modifiers_df = modifiers_df[modifiers_df['Service'] == service] if modifiers_df is not None else None
-
-        intervals = sorted(service_items_df['Interval'].unique())
-        for interval in intervals:
-            interval_items_df = service_items_df[service_items_df['Interval'] == interval]
-            interval_modifiers_df = service_modifiers_df[service_modifiers_df['Interval'] == interval] if service_modifiers_df is not None else None
-
-            counts = calculate_category_counts(interval_items_df, interval_modifiers_df)
-            total = sum(counts.values())
-
-            row_data = {
-                'Service': service,
-                'Interval': interval,
-                **counts,
-                'Total': total
-            }
-            report_data.append(row_data)
-
-    return pd.DataFrame(report_data)
-
 # Display logo
 logo = Image.open('attached_assets/image_1740704103897.png')
 st.image(logo, width=150)
@@ -147,9 +70,39 @@ st.markdown(f'<h1 class="report-title">{selected_location}</h1>', unsafe_allow_h
 st.markdown(f'<h2 class="report-title">{selected_date.strftime("%m/%d/%Y")}</h2>', unsafe_allow_html=True)
 st.markdown('<h3 class="report-title">Category Sales Count Report</h3>', unsafe_allow_html=True)
 
-# Display the report
+# Generate and display report
+interval_minutes = 30 if interval == '30 minutes' else 60
 report_df = utils.generate_report_data(filtered_items_df, filtered_modifiers_df, interval_minutes)
 
+# Format data for display
+if not report_df.empty:
+    # Ensure all numeric columns are integers
+    numeric_cols = ['1/2 Chix', '1/2 Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Full Ribs', 'Grits', 'Pots', 'Total']
+    report_df[numeric_cols] = report_df[numeric_cols].fillna(0).astype(int)
+
+    # Add service totals
+    service_totals = []
+    for service in ['Lunch', 'Dinner']:
+        service_data = report_df[report_df['Service'] == service]
+        if not service_data.empty:
+            service_total = service_data[numeric_cols].sum()
+            service_total['Service'] = f'{service} Total'
+            service_total['Interval'] = ''
+            service_totals.append(service_total)
+
+    # Add grand total
+    grand_total = report_df[numeric_cols].sum()
+    grand_total['Service'] = 'Grand Total'
+    grand_total['Interval'] = ''
+
+    # Combine all rows
+    report_df = pd.concat([
+        report_df,
+        pd.DataFrame(service_totals),
+        pd.DataFrame([grand_total])
+    ]).fillna('')
+
+# Display the report
 st.dataframe(
     report_df,
     hide_index=True,
@@ -168,3 +121,11 @@ st.dataframe(
         'Total': st.column_config.NumberColumn('Total', format='%d')
     }
 )
+
+# Clear historical data button
+if st.sidebar.button('Clear Historical Data'):
+    st.session_state.historical_items_df = None
+    st.session_state.historical_modifiers_df = None
+    st.session_state.items_df = None
+    st.session_state.modifiers_df = None
+    st.experimental_rerun()
