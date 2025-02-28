@@ -90,19 +90,14 @@ interval = st.sidebar.radio(
 )
 
 # Filter data
-filtered_items_df = st.session_state.items_df[
+filtered_df = st.session_state.items_df[
     (st.session_state.items_df['Location'] == selected_location) &
     (st.session_state.items_df['Order Date'].dt.date == selected_date)
 ]
 
-filtered_modifiers_df = st.session_state.modifiers_df[
-    (st.session_state.modifiers_df['Location'] == selected_location) &
-    (st.session_state.modifiers_df['Order Date'].dt.date == selected_date)
-]
-
 # Generate report
 interval_minutes = 30 if interval == '30 minutes' else 60
-report_df = utils.generate_report_data(filtered_items_df, filtered_modifiers_df, interval_minutes)
+report_df = utils.generate_report_data(filtered_df, interval_minutes)
 
 # Display logo
 logo = Image.open('attached_assets/image_1740704103897.png')
