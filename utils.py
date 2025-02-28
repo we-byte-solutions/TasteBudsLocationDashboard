@@ -92,7 +92,7 @@ def get_service_periods(df):
     return df
 
 def calculate_category_counts(items_df, modifiers_df=None):
-    """Calculate category counts using Qty values"""
+    """Calculate category counts using Qty values directly from CSV data"""
     categories = {
         '1/2 Chix': 0,
         '1/2 Ribs': 0,
@@ -104,36 +104,40 @@ def calculate_category_counts(items_df, modifiers_df=None):
         'Pots': 0
     }
 
-    # Load mappings
-    items_mapping, modifiers_mapping = load_category_mappings()
-
-    # Debug
-    st.sidebar.write("Debug - Starting category count calculation")
-    st.sidebar.write("Initial categories:", categories)
-
-    # Process items
+    # Process items from ItemSelectionDetails
     if not items_df.empty:
         grouped_items = items_df.groupby('Menu Item')['Qty'].sum()
         for menu_item, total_qty in grouped_items.items():
             menu_item = str(menu_item).strip()
-            if menu_item in items_mapping:
-                category = items_mapping[menu_item]
-                if category in categories:
-                    categories[category] += float(total_qty)
-                    st.sidebar.write(f"Added {total_qty} to {category} from item {menu_item}")
 
-    # Process modifiers
+            # Count based on menu item names
+            if '1/2 Chicken' in menu_item:
+                categories['1/2 Chix'] += total_qty
+            elif 'Dry Ribs' in menu_item or 'Thai Ribs' in menu_item:
+                if '(8)' in menu_item:
+                    categories['Full Ribs'] += total_qty
+                elif '(4)' in menu_item:
+                    categories['1/2 Ribs'] += total_qty
+
+    # Process modifiers from ModifiersSelectionDetails
     if modifiers_df is not None and not modifiers_df.empty:
         grouped_modifiers = modifiers_df.groupby('Modifier')['Qty'].sum()
         for modifier, total_qty in grouped_modifiers.items():
             modifier = str(modifier).strip()
-            if modifier in modifiers_mapping:
-                category = modifiers_mapping[modifier]
-                if category in categories:
-                    categories[category] += float(total_qty)
-                    st.sidebar.write(f"Added {total_qty} to {category} from modifier {modifier}")
 
-    st.sidebar.write("Final category counts:", categories)
+            # Count based on modifier names
+            if '*Roasted Corn Grits' in modifier:
+                categories['Grits'] += total_qty
+            elif '6oz' in modifier:
+                categories['6oz Mod'] += total_qty
+            elif '8oz' in modifier:
+                categories['8oz Mod'] += total_qty
+            elif 'Corn' in modifier:
+                categories['Corn'] += total_qty
+            elif '*Potatoes' in modifier or 'Pots' in modifier:
+                categories['Pots'] += total_qty
+
+    # Convert all counts to integers
     return {k: int(v) for k, v in categories.items()}
 
 def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
