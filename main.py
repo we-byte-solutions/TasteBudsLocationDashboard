@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 import utils
 from PIL import Image
 
@@ -19,6 +18,35 @@ if 'items_df' not in st.session_state:
     st.session_state.items_df = None
 if 'modifiers_df' not in st.session_state:
     st.session_state.modifiers_df = None
+if 'historical_items_df' not in st.session_state:
+    st.session_state.historical_items_df = None
+if 'historical_modifiers_df' not in st.session_state:
+    st.session_state.historical_modifiers_df = None
+
+# Sidebar
+st.sidebar.title('Data Upload')
+
+# File upload section
+items_file = st.sidebar.file_uploader("Upload Items CSV", type=['csv'])
+modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV", type=['csv'])
+
+# Load data when files are uploaded
+if items_file and modifiers_file:
+    new_items_df, new_modifiers_df = utils.load_data(items_file, modifiers_file)
+    if new_items_df is not None and new_modifiers_df is not None:
+        # Append new data to historical data
+        if st.session_state.historical_items_df is not None:
+            st.session_state.historical_items_df = pd.concat([st.session_state.historical_items_df, new_items_df])
+            st.session_state.historical_modifiers_df = pd.concat([st.session_state.historical_modifiers_df, new_modifiers_df])
+        else:
+            st.session_state.historical_items_df = new_items_df
+            st.session_state.historical_modifiers_df = new_modifiers_df
+
+        # Update current data
+        st.session_state.items_df = st.session_state.historical_items_df
+        st.session_state.modifiers_df = st.session_state.historical_modifiers_df
+
+        st.sidebar.success('Files uploaded successfully! Historical data updated.')
 
 # Load sample data if no data is loaded
 if st.session_state.items_df is None:
@@ -26,6 +54,8 @@ if st.session_state.items_df is None:
         'attached_assets/ItemSelectionDetails.csv',
         'attached_assets/ModifiersSelectionDetails.csv'
     )
+    st.session_state.historical_items_df = st.session_state.items_df
+    st.session_state.historical_modifiers_df = st.session_state.modifiers_df
 
 # Sidebar filters
 st.sidebar.title('Filters')
@@ -77,7 +107,7 @@ report_df = utils.generate_report_data(filtered_items_df, filtered_modifiers_df,
 # Format data for display
 if not report_df.empty:
     # Ensure all numeric columns are integers
-    numeric_cols = ['1/2 Chix', '1/2 Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Full Ribs', 'Grits', 'Pots', 'Total']
+    numeric_cols = ['1/2 Chix', '1/2 Ribs', 'Full Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Grits', 'Pots', 'Total']
     report_df[numeric_cols] = report_df[numeric_cols].fillna(0).astype(int)
 
     # Add service totals

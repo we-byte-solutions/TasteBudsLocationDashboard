@@ -11,10 +11,6 @@ def load_category_mappings():
         items_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=0)
         modifiers_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=1)
 
-        # Debug information
-        st.sidebar.write("Items Mapping from Excel:")
-        st.sidebar.write(items_df.head())
-
         # Create mappings from the first two columns
         items_mapping = {}
         modifiers_mapping = {}
@@ -32,11 +28,6 @@ def load_category_mappings():
             category = str(row.iloc[1]).strip()
             if category in ['1/2 Chix', '1/2 Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Full Ribs', 'Grits', 'Pots']:
                 modifiers_mapping[modifier_name] = category
-
-        # Debug the mappings
-        st.sidebar.write("Debug - Mapped Categories:")
-        st.sidebar.write("Items mappings sample:", dict(list(items_mapping.items())[:5]))
-        st.sidebar.write("Modifiers mappings sample:", dict(list(modifiers_mapping.items())[:5]))
 
         return items_mapping, modifiers_mapping
     except Exception as e:
@@ -57,10 +48,6 @@ def load_data(items_file, modifiers_file):
         # Convert Qty to numeric, replacing non-numeric values with 0
         items_df['Qty'] = pd.to_numeric(items_df['Qty'], errors='coerce').fillna(0)
         modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'], errors='coerce').fillna(0)
-
-        # Debug data
-        st.sidebar.write("Sample Menu Items and Quantities:")
-        st.sidebar.write(items_df[['Menu Item', 'Qty']].head())
 
         return items_df, modifiers_df
     except Exception as e:
@@ -142,9 +129,6 @@ def calculate_category_counts(items_df, modifiers_df=None):
                 categories['8oz Mod'] += 1
             if '*Zea Potatoes' in modifier or modifier_plu == '2310':
                 categories['Pots'] += 1
-
-    # Debug information
-    st.sidebar.write("Category Counts:", categories)
 
     return categories
 
