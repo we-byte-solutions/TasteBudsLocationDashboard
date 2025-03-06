@@ -22,6 +22,10 @@ if 'report_data' not in st.session_state:
     st.session_state.report_data = {}
 if 'interval' not in st.session_state:
     st.session_state.interval = '1 hour'
+if 'locations' not in st.session_state:
+    st.session_state.locations = []
+if 'selected_location' not in st.session_state:
+    st.session_state.selected_location = None
 
 # Sidebar
 st.sidebar.title('Data Upload')
@@ -43,7 +47,6 @@ if items_file and modifiers_file:
     try:
         new_items_df, new_modifiers_df = utils.load_data(items_file, modifiers_file)
         if new_items_df is not None and new_modifiers_df is not None:
-            st.sidebar.write("New data loaded:")
             st.sidebar.write(f"Items rows: {len(new_items_df)}")
             st.sidebar.write(f"Modifiers rows: {len(new_modifiers_df)}")
 
@@ -63,6 +66,11 @@ if items_file and modifiers_file:
                 st.session_state.items_df = new_items_df
                 st.session_state.modifiers_df = new_modifiers_df
 
+            # Update locations list
+            st.session_state.locations = sorted(st.session_state.items_df['Location'].unique())
+            if st.session_state.selected_location not in st.session_state.locations:
+                st.session_state.selected_location = st.session_state.locations[0] if st.session_state.locations else None
+
             # Generate report data for new dates
             for date in new_items_df['Order Date'].dt.date.unique():
                 date_items = new_items_df[new_items_df['Order Date'].dt.date == date]
@@ -80,6 +88,10 @@ if st.session_state.items_df is None:
         'attached_assets/ItemSelectionDetails.csv',
         'attached_assets/ModifiersSelectionDetails.csv'
     )
+    # Update locations list
+    st.session_state.locations = sorted(st.session_state.items_df['Location'].unique())
+    st.session_state.selected_location = st.session_state.locations[0] if st.session_state.locations else None
+
     # Calculate initial report data
     for date in st.session_state.items_df['Order Date'].dt.date.unique():
         date_items = st.session_state.items_df[st.session_state.items_df['Order Date'].dt.date == date]
@@ -91,29 +103,50 @@ if st.session_state.items_df is None:
 st.sidebar.title('Filters')
 
 # Location filter
-locations = st.session_state.items_df['Location'].unique()
-selected_location = st.sidebar.selectbox('Location', locations)
+if st.session_state.locations:
+    selected_location = st.sidebar.selectbox(
+        'Location',
+        options=st.session_state.locations,
+        index=st.session_state.locations.index(st.session_state.selected_location) if st.session_state.selected_location else 0
+    )
+    st.session_state.selected_location = selected_location
+else:
+    st.sidebar.error("No locations available in the data")
+    selected_location = None
 
 # Date filter
-dates = sorted(st.session_state.items_df['Order Date'].dt.date.unique())
-selected_date = st.sidebar.date_input(
-    'Date',
-    value=dates[0] if dates else None,
-    min_value=dates[0] if dates else None,
-    max_value=dates[-1] if dates else None
-)
+dates = sorted(st.session_state.items_df['Order Date'].dt.date.unique()) if st.session_state.items_df is not None else []
+if dates:
+    selected_date = st.sidebar.date_input(
+        'Date',
+        value=dates[0],
+        min_value=dates[0],
+        max_value=dates[-1]
+    )
+else:
+    st.sidebar.error("No dates available in the data")
+    selected_date = None
 
 # Display logo
 logo = Image.open('attached_assets/image_1740704103897.png')
 st.image(logo, width=150)
 
 # Display report header
-st.markdown(f'<h1 class="report-title">{selected_location}</h1>', unsafe_allow_html=True)
-st.markdown(f'<h2 class="report-title">{selected_date.strftime("%m/%d/%Y")}</h2>', unsafe_allow_html=True)
+if selected_location:
+    st.markdown(f'<h1 class="report-title">{selected_location}</h1>', unsafe_allow_html=True)
+else:
+    st.markdown(f'<h1 class="report-title">No Location Selected</h1>', unsafe_allow_html=True)
+
+if selected_date:
+    st.markdown(f'<h2 class="report-title">{selected_date.strftime("%m/%d/%Y")}</h2>', unsafe_allow_html=True)
+else:
+    st.markdown(f'<h2 class="report-title">No Date Selected</h2>', unsafe_allow_html=True)
+
+
 st.markdown('<h3 class="report-title">Category Sales Count Report</h3>', unsafe_allow_html=True)
 
 # Generate report data for selected date
-if selected_date is not None:
+if selected_date is not None and st.session_state.items_df is not None and st.session_state.modifiers_df is not None:
     date_items = st.session_state.items_df[st.session_state.items_df['Order Date'].dt.date == selected_date]
     date_modifiers = st.session_state.modifiers_df[st.session_state.modifiers_df['Order Date'].dt.date == selected_date]
     interval_minutes = 30 if st.session_state.interval == '30 minutes' else 60
@@ -174,4 +207,6 @@ if st.sidebar.button('Clear Uploaded Data'):
     st.session_state.items_df = None
     st.session_state.modifiers_df = None
     st.session_state.report_data = {}
+    st.session_state.locations = []
+    st.session_state.selected_location = None
     st.rerun()
