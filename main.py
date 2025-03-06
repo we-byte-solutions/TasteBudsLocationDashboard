@@ -18,6 +18,8 @@ if 'items_df' not in st.session_state:
     st.session_state.items_df = None
 if 'modifiers_df' not in st.session_state:
     st.session_state.modifiers_df = None
+if 'report_data' not in st.session_state:
+    st.session_state.report_data = {}
 
 # Sidebar
 st.sidebar.title('Data Upload')
@@ -30,8 +32,19 @@ modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV", type=['csv'])
 if items_file and modifiers_file:
     new_items_df, new_modifiers_df = utils.load_data(items_file, modifiers_file)
     if new_items_df is not None and new_modifiers_df is not None:
+        # Update the main data
         st.session_state.items_df = new_items_df
         st.session_state.modifiers_df = new_modifiers_df
+
+        # Calculate and store report data for all dates
+        for date in new_items_df['Order Date'].dt.date.unique():
+            date_items_df = new_items_df[new_items_df['Order Date'].dt.date == date]
+            date_modifiers_df = new_modifiers_df[new_modifiers_df['Order Date'].dt.date == date]
+
+            # Generate report data for this date
+            date_report = utils.generate_report_data(date_items_df, date_modifiers_df, 60)
+            st.session_state.report_data[date] = date_report
+
         st.sidebar.success('Files uploaded successfully!')
 
 # Load sample data if no data is loaded
@@ -40,6 +53,12 @@ if st.session_state.items_df is None:
         'attached_assets/ItemSelectionDetails.csv',
         'attached_assets/ModifiersSelectionDetails.csv'
     )
+    # Calculate initial report data
+    for date in st.session_state.items_df['Order Date'].dt.date.unique():
+        date_items_df = st.session_state.items_df[st.session_state.items_df['Order Date'].dt.date == date]
+        date_modifiers_df = st.session_state.modifiers_df[st.session_state.modifiers_df['Order Date'].dt.date == date]
+        date_report = utils.generate_report_data(date_items_df, date_modifiers_df, 60)
+        st.session_state.report_data[date] = date_report
 
 # Sidebar filters
 st.sidebar.title('Filters')
@@ -64,17 +83,6 @@ interval = st.sidebar.radio(
     horizontal=True
 )
 
-# Filter data based on selected location and date
-filtered_items_df = st.session_state.items_df[
-    (st.session_state.items_df['Location'] == selected_location) &
-    (st.session_state.items_df['Order Date'].dt.date == selected_date)
-]
-
-filtered_modifiers_df = st.session_state.modifiers_df[
-    (st.session_state.modifiers_df['Location'] == selected_location) &
-    (st.session_state.modifiers_df['Order Date'].dt.date == selected_date)
-]
-
 # Display logo
 logo = Image.open('attached_assets/image_1740704103897.png')
 st.image(logo, width=150)
@@ -84,9 +92,8 @@ st.markdown(f'<h1 class="report-title">{selected_location}</h1>', unsafe_allow_h
 st.markdown(f'<h2 class="report-title">{selected_date.strftime("%m/%d/%Y")}</h2>', unsafe_allow_html=True)
 st.markdown('<h3 class="report-title">Category Sales Count Report</h3>', unsafe_allow_html=True)
 
-# Generate and display report
-interval_minutes = 30 if interval == '30 minutes' else 60
-report_df = utils.generate_report_data(filtered_items_df, filtered_modifiers_df, interval_minutes)
+# Get stored report data for selected date
+report_df = st.session_state.report_data.get(selected_date, pd.DataFrame())
 
 # Format data for display
 if not report_df.empty:
@@ -140,4 +147,5 @@ st.dataframe(
 if st.sidebar.button('Clear Uploaded Data'):
     st.session_state.items_df = None
     st.session_state.modifiers_df = None
+    st.session_state.report_data = {}
     st.experimental_rerun()
