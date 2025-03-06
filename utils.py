@@ -59,6 +59,7 @@ def create_time_intervals(df, interval_minutes=60):
     df['Hour'] = df['Order Date'].dt.hour
     df['Minute'] = df['Order Date'].dt.minute
 
+    # Create intervals based on the selected time period
     if interval_minutes == 30:
         df['Interval'] = df.apply(
             lambda x: f"{x['Hour']:02d}:{30 if x['Minute'] >= 30 else 00:02d}-{x['Hour']:02d}:{59 if x['Minute'] >= 30 else 29:02d}",

@@ -20,6 +20,8 @@ if 'modifiers_df' not in st.session_state:
     st.session_state.modifiers_df = None
 if 'report_data' not in st.session_state:
     st.session_state.report_data = {}
+if 'interval' not in st.session_state:
+    st.session_state.interval = '1 hour'
 
 # Sidebar
 st.sidebar.title('Data Upload')
@@ -27,6 +29,14 @@ st.sidebar.title('Data Upload')
 # File upload section
 items_file = st.sidebar.file_uploader("Upload Items CSV", type=['csv'])
 modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV", type=['csv'])
+
+# Time interval filter - put this before data processing
+interval = st.sidebar.radio(
+    'Time Interval',
+    options=['1 hour', '30 minutes'],
+    horizontal=True,
+    key='interval'
+)
 
 # Load data when files are uploaded
 if items_file and modifiers_file:
@@ -43,7 +53,8 @@ if items_file and modifiers_file:
                 date_modifiers = new_modifiers_df[new_modifiers_df['Order Date'].dt.date == date]
 
                 # Generate report data for this date
-                date_report = utils.generate_report_data(date_items, date_modifiers, 60)
+                interval_minutes = 30 if interval == '30 minutes' else 60
+                date_report = utils.generate_report_data(date_items, date_modifiers, interval_minutes)
                 st.session_state.report_data[date] = date_report
 
             # Update the main dataframes
@@ -63,11 +74,12 @@ if items_file and modifiers_file:
             st.session_state.items_df = new_items_df
             st.session_state.modifiers_df = new_modifiers_df
 
-            # Calculate initial report data
+            # Calculate initial report data for all dates
             for date in new_items_df['Order Date'].dt.date.unique():
                 date_items = new_items_df[new_items_df['Order Date'].dt.date == date]
                 date_modifiers = new_modifiers_df[new_modifiers_df['Order Date'].dt.date == date]
-                date_report = utils.generate_report_data(date_items, date_modifiers, 60)
+                interval_minutes = 30 if interval == '30 minutes' else 60
+                date_report = utils.generate_report_data(date_items, date_modifiers, interval_minutes)
                 st.session_state.report_data[date] = date_report
 
         st.sidebar.success('Files uploaded successfully!')
@@ -80,9 +92,10 @@ if st.session_state.items_df is None:
     )
     # Calculate initial report data
     for date in st.session_state.items_df['Order Date'].dt.date.unique():
-        date_items_df = st.session_state.items_df[st.session_state.items_df['Order Date'].dt.date == date]
-        date_modifiers_df = st.session_state.modifiers_df[st.session_state.modifiers_df['Order Date'].dt.date == date]
-        date_report = utils.generate_report_data(date_items_df, date_modifiers_df, 60)
+        date_items = st.session_state.items_df[st.session_state.items_df['Order Date'].dt.date == date]
+        date_modifiers = st.session_state.modifiers_df[st.session_state.modifiers_df['Order Date'].dt.date == date]
+        interval_minutes = 30 if st.session_state.interval == '30 minutes' else 60 # Use session state interval
+        date_report = utils.generate_report_data(date_items, date_modifiers, interval_minutes)
         st.session_state.report_data[date] = date_report
 
 # Sidebar filters
@@ -101,12 +114,6 @@ selected_date = st.sidebar.date_input(
     max_value=dates[-1]
 )
 
-# Time interval filter
-interval = st.sidebar.radio(
-    'Time Interval',
-    options=['1 hour', '30 minutes'],
-    horizontal=True
-)
 
 # Display logo
 logo = Image.open('attached_assets/image_1740704103897.png')
@@ -117,8 +124,14 @@ st.markdown(f'<h1 class="report-title">{selected_location}</h1>', unsafe_allow_h
 st.markdown(f'<h2 class="report-title">{selected_date.strftime("%m/%d/%Y")}</h2>', unsafe_allow_html=True)
 st.markdown('<h3 class="report-title">Category Sales Count Report</h3>', unsafe_allow_html=True)
 
-# Get stored report data for selected date
-report_df = st.session_state.report_data.get(selected_date, pd.DataFrame())
+# Generate report data with current interval setting
+if selected_date is not None:
+    date_items = st.session_state.items_df[st.session_state.items_df['Order Date'].dt.date == selected_date]
+    date_modifiers = st.session_state.modifiers_df[st.session_state.modifiers_df['Order Date'].dt.date == selected_date]
+    interval_minutes = 30 if st.session_state.interval == '30 minutes' else 60 #Use session state interval
+    report_df = utils.generate_report_data(date_items, date_modifiers, interval_minutes)
+else:
+    report_df = pd.DataFrame()
 
 # Format data for display
 if not report_df.empty:
