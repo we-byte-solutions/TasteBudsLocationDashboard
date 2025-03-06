@@ -32,18 +32,43 @@ modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV", type=['csv'])
 if items_file and modifiers_file:
     new_items_df, new_modifiers_df = utils.load_data(items_file, modifiers_file)
     if new_items_df is not None and new_modifiers_df is not None:
-        # Update the main data
-        st.session_state.items_df = new_items_df
-        st.session_state.modifiers_df = new_modifiers_df
+        # Merge new data with existing data
+        if st.session_state.items_df is not None:
+            existing_dates = set(st.session_state.items_df['Order Date'].dt.date)
+            new_dates = set(new_items_df['Order Date'].dt.date)
 
-        # Calculate and store report data for all dates
-        for date in new_items_df['Order Date'].dt.date.unique():
-            date_items_df = new_items_df[new_items_df['Order Date'].dt.date == date]
-            date_modifiers_df = new_modifiers_df[new_modifiers_df['Order Date'].dt.date == date]
+            # For dates in new data, update or add to existing data
+            for date in new_dates:
+                date_items = new_items_df[new_items_df['Order Date'].dt.date == date]
+                date_modifiers = new_modifiers_df[new_modifiers_df['Order Date'].dt.date == date]
 
-            # Generate report data for this date
-            date_report = utils.generate_report_data(date_items_df, date_modifiers_df, 60)
-            st.session_state.report_data[date] = date_report
+                # Generate report data for this date
+                date_report = utils.generate_report_data(date_items, date_modifiers, 60)
+                st.session_state.report_data[date] = date_report
+
+            # Update the main dataframes
+            all_items = pd.concat([
+                st.session_state.items_df[~st.session_state.items_df['Order Date'].dt.date.isin(new_dates)],
+                new_items_df
+            ])
+            all_modifiers = pd.concat([
+                st.session_state.modifiers_df[~st.session_state.modifiers_df['Order Date'].dt.date.isin(new_dates)],
+                new_modifiers_df
+            ])
+
+            st.session_state.items_df = all_items
+            st.session_state.modifiers_df = all_modifiers
+        else:
+            # First time loading data
+            st.session_state.items_df = new_items_df
+            st.session_state.modifiers_df = new_modifiers_df
+
+            # Calculate initial report data
+            for date in new_items_df['Order Date'].dt.date.unique():
+                date_items = new_items_df[new_items_df['Order Date'].dt.date == date]
+                date_modifiers = new_modifiers_df[new_modifiers_df['Order Date'].dt.date == date]
+                date_report = utils.generate_report_data(date_items, date_modifiers, 60)
+                st.session_state.report_data[date] = date_report
 
         st.sidebar.success('Files uploaded successfully!')
 
