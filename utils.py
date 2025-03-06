@@ -148,16 +148,29 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
     report_data = []
     for service in ['Lunch', 'Dinner']:
         service_items_df = items_df[items_df['Service'] == service]
-        service_modifiers_df = modifiers_df[modifiers_df['Service'] == service] if modifiers_df is not None else None
 
+        # Get intervals for this service period
         intervals = sorted(service_items_df['Interval'].unique())
-        for interval in intervals:
-            interval_items_df = service_items_df[service_items_df['Interval'] == interval]
-            interval_modifiers_df = service_modifiers_df[service_modifiers_df['Interval'] == interval] if service_modifiers_df is not None else None
 
+        # Create service modifiers dataframe if modifiers exist
+        service_modifiers_df = None
+        if modifiers_df is not None and not modifiers_df.empty:
+            service_modifiers_df = modifiers_df[modifiers_df['Service'] == service]
+
+        for interval in intervals:
+            # Filter items for this interval
+            interval_items_df = service_items_df[service_items_df['Interval'] == interval]
+
+            # Filter modifiers for this interval if they exist
+            interval_modifiers_df = None
+            if service_modifiers_df is not None:
+                interval_modifiers_df = service_modifiers_df[service_modifiers_df['Interval'] == interval]
+
+            # Calculate counts
             counts = calculate_category_counts(interval_items_df, interval_modifiers_df)
             total = sum(counts.values())
 
+            # Create row data
             row_data = {
                 'Service': service,
                 'Interval': interval,
