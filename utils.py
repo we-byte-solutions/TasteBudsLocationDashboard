@@ -92,43 +92,52 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
                         interval_mods = hour_mods
 
                     # Calculate counts
+                    # Count chicken using White/Dark meat modifiers
+                    chicken_count = len(interval_mods[
+                        (interval_mods['Modifier'].str.contains('White Meat|Dark Meat', regex=True, case=False)) &
+                        (interval_mods['Parent Menu Selection'].str.contains('Rotisserie Chicken', case=False))
+                    ]) if not interval_mods.empty else 0
+
+                    # Count ribs using Menu Item column
+                    half_ribs = len(interval_items[
+                        interval_items['Menu Item'].str.contains(r'\(4\)', regex=True, case=False)
+                    ])
+
+                    full_ribs = len(interval_items[
+                        interval_items['Menu Item'].str.contains(r'\(8\)', regex=True, case=False)
+                    ])
+
+                    # Count sides from modifiers with QT pattern
+                    green_beans = len(interval_mods[
+                        interval_mods['Modifier'].str.contains(r'\*(?:QT )?(?:Thai )?Green Beans', regex=True, case=False)
+                    ]) if not interval_mods.empty else 0
+
+                    grits = len(interval_mods[
+                        interval_mods['Modifier'].str.contains(r'\*(?:QT )?Roasted Corn Grits', regex=True, case=False)
+                    ]) if not interval_mods.empty else 0
+
+                    potatoes = len(interval_mods[
+                        interval_mods['Modifier'].str.contains(r'\*(?:QT )?Zea Potatoes', regex=True, case=False)
+                    ]) if not interval_mods.empty else 0
+
+                    # Count portion modifications
+                    six_oz = len(interval_mods[
+                        interval_mods['Modifier'].str.contains('6oz', case=False)
+                    ]) if not interval_mods.empty else 0
+
+                    eight_oz = len(interval_mods[
+                        interval_mods['Modifier'].str.contains('8oz', case=False)
+                    ]) if not interval_mods.empty else 0
+
                     counts = {
-                        # Count chicken using White/Dark meat modifiers
-                        '1/2 Chix': len(interval_mods[
-                            (interval_mods['Modifier'].str.contains('White Meat|Dark Meat', regex=True, case=False)) &
-                            (interval_mods['Parent Menu Selection'].str.contains('Rotisserie Chicken', case=False))
-                        ]) if not interval_mods.empty else 0,
-
-                        # Count ribs
-                        '1/2 Ribs': len(interval_items[
-                            interval_items['Menu Item'].str.contains(r'\(4\)', regex=True, case=False)
-                        ]),
-
-                        'Full Ribs': len(interval_items[
-                            interval_items['Menu Item'].str.contains(r'\(8\)', regex=True, case=False)
-                        ]),
-
-                        # Count portion modifications
-                        '6oz Mod': len(interval_mods[
-                            interval_mods['Modifier'].str.contains('6oz', case=False)
-                        ]) if not interval_mods.empty else 0,
-
-                        '8oz Mod': len(interval_mods[
-                            interval_mods['Modifier'].str.contains('8oz', case=False)
-                        ]) if not interval_mods.empty else 0,
-
-                        # Count sides with escaped asterisks
-                        'Corn': len(interval_mods[
-                            interval_mods['Modifier'].str.contains(r'\*(?:Thai )?Green Beans', regex=True, case=False)
-                        ]) if not interval_mods.empty else 0,
-
-                        'Grits': len(interval_mods[
-                            interval_mods['Modifier'].str.contains(r'\*Roasted Corn Grits', regex=True, case=False)
-                        ]) if not interval_mods.empty else 0,
-
-                        'Pots': len(interval_mods[
-                            interval_mods['Modifier'].str.contains(r'\*Zea Potatoes', regex=True, case=False)
-                        ]) if not interval_mods.empty else 0
+                        '1/2 Chix': chicken_count,
+                        '1/2 Ribs': half_ribs,
+                        'Full Ribs': full_ribs,
+                        '6oz Mod': six_oz,
+                        '8oz Mod': eight_oz,
+                        'Corn': green_beans,
+                        'Grits': grits,
+                        'Pots': potatoes
                     }
 
                     # Add row if there are any non-zero counts
