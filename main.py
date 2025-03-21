@@ -19,7 +19,7 @@ if 'items_df' not in st.session_state:
 if 'modifiers_df' not in st.session_state:
     st.session_state.modifiers_df = None
 if 'report_data' not in st.session_state:
-    st.session_state.report_data = None #Corrected initialization
+    st.session_state.report_data = {}  # Dictionary to store historical data
 if 'interval' not in st.session_state:
     st.session_state.interval = '1 hour'
 if 'locations' not in st.session_state:
@@ -53,22 +53,37 @@ if items_file and modifiers_file:
             st.sidebar.write(f"Items rows: {len(new_items_df)}")
             st.sidebar.write(f"Modifiers rows: {len(new_modifiers_df)}")
 
-            # Replace existing data completely
-            st.session_state.items_df = new_items_df
-            st.session_state.modifiers_df = new_modifiers_df
+            # Initialize if no existing data
+            if st.session_state.items_df is None:
+                st.session_state.items_df = new_items_df
+                st.session_state.modifiers_df = new_modifiers_df
+            else:
+                # Get dates from new data
+                new_dates = set(new_items_df['Order Date'].dt.date)
+
+                # Remove old data for dates that are in new upload
+                old_items = st.session_state.items_df[~st.session_state.items_df['Order Date'].dt.date.isin(new_dates)]
+                old_modifiers = st.session_state.modifiers_df[~st.session_state.modifiers_df['Order Date'].dt.date.isin(new_dates)]
+
+                # Combine with new data
+                st.session_state.items_df = pd.concat([old_items, new_items_df])
+                st.session_state.modifiers_df = pd.concat([old_modifiers, new_modifiers_df])
 
             # Update locations list
-            st.session_state.locations = sorted(new_items_df['Location'].unique())
+            st.session_state.locations = sorted(st.session_state.items_df['Location'].unique())
             if st.session_state.selected_location not in st.session_state.locations:
                 st.session_state.selected_location = st.session_state.locations[0] if st.session_state.locations else None
 
-            # Generate report data
+            # Generate report data for each date
             interval_minutes = 30 if st.session_state.interval == '30 minutes' else 60
-            st.session_state.report_data = utils.generate_report_data(
-                st.session_state.items_df,
-                st.session_state.modifiers_df,
-                interval_minutes
-            )
+            for date in new_dates:
+                date_items = st.session_state.items_df[st.session_state.items_df['Order Date'].dt.date == date]
+                date_mods = st.session_state.modifiers_df[st.session_state.modifiers_df['Order Date'].dt.date == date]
+                st.session_state.report_data[date] = utils.generate_report_data(
+                    date_items,
+                    date_mods,
+                    interval_minutes
+                )
 
             st.sidebar.success('Files uploaded and processed successfully!')
     except Exception as e:
@@ -119,21 +134,9 @@ else:
 
 st.markdown('<h3 class="report-title">Category Sales Count Report</h3>', unsafe_allow_html=True)
 
-# Generate report data for selected date and location
-if selected_date is not None and selected_location is not None:
-    # Filter data for selected date and location
-    items_df = st.session_state.items_df[
-        (st.session_state.items_df['Order Date'].dt.date == selected_date) &
-        (st.session_state.items_df['Location'] == selected_location)
-    ]
-    modifiers_df = st.session_state.modifiers_df[
-        (st.session_state.modifiers_df['Order Date'].dt.date == selected_date) &
-        (st.session_state.modifiers_df['Location'] == selected_location)
-    ]
-
-    # Generate report data
-    interval_minutes = 30 if st.session_state.interval == '30 minutes' else 60
-    report_df = utils.generate_report_data(items_df, modifiers_df, interval_minutes)
+# Get report data for selected date
+if selected_date is not None and selected_date in st.session_state.report_data:
+    report_df = st.session_state.report_data[selected_date]
 else:
     report_df = pd.DataFrame()
 
@@ -190,7 +193,7 @@ st.dataframe(
 if st.sidebar.button('Clear Uploaded Data'):
     st.session_state.items_df = None
     st.session_state.modifiers_df = None
-    st.session_state.report_data = None
+    st.session_state.report_data = {}
     st.session_state.locations = []
     st.session_state.selected_location = None
     st.rerun()
