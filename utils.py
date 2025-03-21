@@ -4,36 +4,6 @@ from datetime import datetime, timedelta
 import streamlit as st
 import openpyxl
 
-def load_category_mappings():
-    """Load category mappings from Excel file"""
-    try:
-        # Read the Excel file
-        items_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=0)
-        modifiers_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=1)
-
-        # Create mappings from the first two columns
-        items_mapping = {}
-        modifiers_mapping = {}
-
-        # Process items mappings
-        for idx, row in items_df.iterrows():
-            item_name = str(row.iloc[0]).strip()
-            category = str(row.iloc[1]).strip()
-            if category in ['1/2 Chix', '1/2 Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Full Ribs', 'Grits', 'Pots']:
-                items_mapping[item_name] = category
-
-        # Process modifiers mappings
-        for idx, row in modifiers_df.iterrows():
-            modifier_name = str(row.iloc[0]).strip()
-            category = str(row.iloc[1]).strip()
-            if category in ['1/2 Chix', '1/2 Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Full Ribs', 'Grits', 'Pots']:
-                modifiers_mapping[modifier_name] = category
-
-        return items_mapping, modifiers_mapping
-    except Exception as e:
-        st.error(f"Error loading category mappings: {str(e)}")
-        return {}, {}
-
 def load_data(items_file, modifiers_file):
     """Load and preprocess sales data from CSV files"""
     try:
@@ -80,7 +50,7 @@ def get_service_periods(df):
     return df
 
 def calculate_category_counts(items_df, modifiers_df=None):
-    """Calculate category counts using Qty values directly from CSV data"""
+    """Calculate category counts for a specific time interval"""
     categories = {
         '1/2 Chix': 0,
         '1/2 Ribs': 0,
@@ -92,44 +62,35 @@ def calculate_category_counts(items_df, modifiers_df=None):
         'Pots': 0
     }
 
-    # Process items from ItemSelectionDetails
-    if not items_df.empty:
-        for _, row in items_df.iterrows():
-            menu_item = str(row['Menu Item']).strip()
-            plu = str(row.get('PLU', '')).strip()
-
-            # Special case for PLUs that count in multiple categories
-            if plu in ['3009', '81831']:
-                categories['1/2 Chix'] += 1
-                categories['1/2 Ribs'] += 1
-                continue
-
-            # Count based on menu item names
-            if 'Rotisserie Chicken' in menu_item or '1/2 Chicken' in menu_item:
-                categories['1/2 Chix'] += 1
-            if 'Dry Ribs' in menu_item or 'Thai Ribs' in menu_item:
-                if '(8)' in menu_item:
-                    categories['Full Ribs'] += 1
-                elif '(4)' in menu_item:
-                    categories['1/2 Ribs'] += 1
-
     # Process modifiers from ModifiersSelectionDetails
     if modifiers_df is not None and not modifiers_df.empty:
         for _, row in modifiers_df.iterrows():
             modifier = str(row['Modifier']).strip()
-            modifier_plu = str(row.get('Modifier PLU', '')).strip()
+            menu_selection = str(row['Parent Menu Selection']).strip()
+            qty = row['Qty']
+
+            # Check ribs in parent menu selection
+            if '(4) Dry Ribs' in menu_selection or '(4) Thai Ribs' in menu_selection:
+                categories['1/2 Ribs'] += qty
+            elif '(8) Dry Ribs' in menu_selection or '(8) Thai Ribs' in menu_selection:
+                categories['Full Ribs'] += qty
 
             # Check modifiers
-            if 'Corn' in modifier and 'Grits' not in modifier:
-                categories['Corn'] += 1
             if '*Roasted Corn Grits' in modifier:
-                categories['Grits'] += 1
-            if '6oz' in modifier:
-                categories['6oz Mod'] += 1
-            if '8oz' in modifier:
-                categories['8oz Mod'] += 1
-            if '*Zea Potatoes' in modifier or modifier_plu == '2310':
-                categories['Pots'] += 1
+                categories['Grits'] += qty
+            elif '*Zea Potatoes' in modifier:
+                categories['Pots'] += qty
+            elif '*Thai Green Beans' in modifier or '*Green Beans' in modifier:
+                categories['Corn'] += qty
+            elif '6oz' in modifier:
+                categories['6oz Mod'] += qty
+            elif '8oz' in modifier:
+                categories['8oz Mod'] += qty
+
+    # Process chicken items from Parent Menu Selection
+    if not items_df.empty:
+        chicken_items = items_df[items_df['Parent Menu Selection'].str.contains('Rotisserie Chicken', na=False)]
+        categories['1/2 Chix'] += chicken_items['Qty'].sum()
 
     return categories
 

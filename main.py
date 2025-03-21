@@ -146,9 +146,18 @@ else:
 st.markdown('<h3 class="report-title">Category Sales Count Report</h3>', unsafe_allow_html=True)
 
 # Generate report data for selected date
-if selected_date is not None and st.session_state.items_df is not None and st.session_state.modifiers_df is not None:
-    date_items = st.session_state.items_df[st.session_state.items_df['Order Date'].dt.date == selected_date]
-    date_modifiers = st.session_state.modifiers_df[st.session_state.modifiers_df['Order Date'].dt.date == selected_date]
+if selected_date is not None and selected_location is not None:
+    # Filter data for selected date and location
+    date_items = st.session_state.items_df[
+        (st.session_state.items_df['Order Date'].dt.date == selected_date) &
+        (st.session_state.items_df['Location'] == selected_location)
+    ]
+    date_modifiers = st.session_state.modifiers_df[
+        (st.session_state.modifiers_df['Order Date'].dt.date == selected_date) &
+        (st.session_state.modifiers_df['Location'] == selected_location)
+    ]
+
+    # Generate report data
     interval_minutes = 30 if st.session_state.interval == '30 minutes' else 60
     report_df = utils.generate_report_data(date_items, date_modifiers, interval_minutes)
 else:
@@ -187,7 +196,7 @@ st.dataframe(
     report_df,
     hide_index=True,
     use_container_width=True,
-    height=600,  # Set a fixed height that shows all content
+    height=600,
     column_config={
         'Service': st.column_config.TextColumn('Service', width='small'),
         'Interval': st.column_config.TextColumn('Time', width='small'),
