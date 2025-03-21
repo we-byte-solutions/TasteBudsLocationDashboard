@@ -72,32 +72,16 @@ if items_file and modifiers_file:
                 st.session_state.selected_location = st.session_state.locations[0] if st.session_state.locations else None
 
             # Generate report data for new dates
-            for date in new_items_df['Order Date'].dt.date.unique():
-                date_items = new_items_df[new_items_df['Order Date'].dt.date == date]
-                date_modifiers = new_modifiers_df[new_modifiers_df['Order Date'].dt.date == date]
-                interval_minutes = 30 if st.session_state.interval == '30 minutes' else 60
-                st.session_state.report_data[date] = utils.generate_report_data(date_items, date_modifiers, interval_minutes)
+            interval_minutes = 30 if st.session_state.interval == '30 minutes' else 60
+            st.session_state.report_data = utils.generate_report_data(
+                st.session_state.items_df,
+                st.session_state.modifiers_df,
+                interval_minutes
+            )
 
             st.sidebar.success('Files uploaded and processed successfully!')
     except Exception as e:
         st.sidebar.error(f'Error processing files: {str(e)}')
-
-# Load sample data if no data is loaded
-if st.session_state.items_df is None:
-    st.session_state.items_df, st.session_state.modifiers_df = utils.load_data(
-        'attached_assets/ItemSelectionDetails.csv',
-        'attached_assets/ModifiersSelectionDetails.csv'
-    )
-    # Update locations list
-    st.session_state.locations = sorted(st.session_state.items_df['Location'].unique())
-    st.session_state.selected_location = st.session_state.locations[0] if st.session_state.locations else None
-
-    # Calculate initial report data
-    for date in st.session_state.items_df['Order Date'].dt.date.unique():
-        date_items = st.session_state.items_df[st.session_state.items_df['Order Date'].dt.date == date]
-        date_modifiers = st.session_state.modifiers_df[st.session_state.modifiers_df['Order Date'].dt.date == date]
-        interval_minutes = 30 if st.session_state.interval == '30 minutes' else 60
-        st.session_state.report_data[date] = utils.generate_report_data(date_items, date_modifiers, interval_minutes)
 
 # Sidebar filters
 st.sidebar.title('Filters')
@@ -142,24 +126,23 @@ if selected_date:
 else:
     st.markdown(f'<h2 class="report-title">No Date Selected</h2>', unsafe_allow_html=True)
 
-
 st.markdown('<h3 class="report-title">Category Sales Count Report</h3>', unsafe_allow_html=True)
 
-# Generate report data for selected date
+# Generate report data for selected date and location
 if selected_date is not None and selected_location is not None:
     # Filter data for selected date and location
-    date_items = st.session_state.items_df[
+    items_df = st.session_state.items_df[
         (st.session_state.items_df['Order Date'].dt.date == selected_date) &
         (st.session_state.items_df['Location'] == selected_location)
     ]
-    date_modifiers = st.session_state.modifiers_df[
+    modifiers_df = st.session_state.modifiers_df[
         (st.session_state.modifiers_df['Order Date'].dt.date == selected_date) &
         (st.session_state.modifiers_df['Location'] == selected_location)
     ]
 
     # Generate report data
     interval_minutes = 30 if st.session_state.interval == '30 minutes' else 60
-    report_df = utils.generate_report_data(date_items, date_modifiers, interval_minutes)
+    report_df = utils.generate_report_data(items_df, modifiers_df, interval_minutes)
 else:
     report_df = pd.DataFrame()
 
