@@ -45,6 +45,11 @@ def load_data(items_file, modifiers_file):
         items_df['Order Date'] = pd.to_datetime(items_df['Order Date'])
         modifiers_df['Order Date'] = pd.to_datetime(modifiers_df['Order Date'])
 
+        # Filter dates from March 1st, 2025 onwards
+        cutoff_date = pd.to_datetime('2025-03-01')
+        items_df = items_df[items_df['Order Date'] >= cutoff_date]
+        modifiers_df = modifiers_df[modifiers_df['Order Date'] >= cutoff_date]
+
         # Convert Qty to numeric, replacing non-numeric values with 0
         items_df['Qty'] = pd.to_numeric(items_df['Qty'], errors='coerce').fillna(0)
         modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'], errors='coerce').fillna(0)
