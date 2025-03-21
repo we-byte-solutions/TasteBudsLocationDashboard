@@ -1,8 +1,5 @@
 import pandas as pd
-import numpy as np 
-from datetime import datetime, timedelta
 import streamlit as st
-import openpyxl
 
 def load_data(items_file, modifiers_file):
     """Load and preprocess sales data from CSV files"""
@@ -15,130 +12,96 @@ def load_data(items_file, modifiers_file):
         items_df['Order Date'] = pd.to_datetime(items_df['Order Date'])
         modifiers_df['Order Date'] = pd.to_datetime(modifiers_df['Order Date'])
 
-        # Convert Qty to numeric, replacing non-numeric values with 0
-        items_df['Qty'] = pd.to_numeric(items_df['Qty'], errors='coerce').fillna(0)
-        modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'], errors='coerce').fillna(0)
+        # Convert Qty to numeric, handling 'false' values
+        items_df['Qty'] = pd.to_numeric(items_df['Qty'].replace('false', '0'), errors='coerce').fillna(0)
+        modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'].replace('false', '0'), errors='coerce').fillna(0)
 
         return items_df, modifiers_df
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
         return None, None
 
-def create_time_intervals(df, interval_minutes=60):
-    """Create time intervals for the data"""
-    df['Hour'] = df['Order Date'].dt.hour
-    df['Minute'] = df['Order Date'].dt.minute
-
-    # Create intervals based on the selected time period
-    if interval_minutes == 30:
-        df['Interval'] = df.apply(
-            lambda x: f"{x['Hour']:02d}:{30 if x['Minute'] >= 30 else 00:02d}-{x['Hour']:02d}:{59 if x['Minute'] >= 30 else 29:02d}",
-            axis=1
-        )
-    else:
-        df['Interval'] = df.apply(
-            lambda x: f"{x['Hour']:02d}:00-{x['Hour']:02d}:59",
-            axis=1
-        )
-    return df
-
-def get_service_periods(df):
-    """Split data into Lunch and Dinner periods"""
-    df['Service'] = df['Order Date'].dt.hour.apply(
-        lambda x: 'Lunch' if 6 <= x < 16 else 'Dinner'
-    )
-    return df
-
-def calculate_category_counts(items_df, modifiers_df=None):
-    """Calculate category counts for a specific time interval"""
-    categories = {
-        '1/2 Chix': 0,
-        '1/2 Ribs': 0,
-        'Full Ribs': 0,
-        '6oz Mod': 0,
-        '8oz Mod': 0,
-        'Corn': 0,
-        'Grits': 0,
-        'Pots': 0
-    }
-
-    # Process modifiers from ModifiersSelectionDetails
-    if modifiers_df is not None and not modifiers_df.empty:
-        for _, row in modifiers_df.iterrows():
-            modifier = str(row['Modifier']).strip()
-            menu_selection = str(row['Parent Menu Selection']).strip()
-            qty = row['Qty']
-
-            # Check ribs in parent menu selection
-            if '(4) Dry Ribs' in menu_selection or '(4) Thai Ribs' in menu_selection:
-                categories['1/2 Ribs'] += qty
-            elif '(8) Dry Ribs' in menu_selection or '(8) Thai Ribs' in menu_selection:
-                categories['Full Ribs'] += qty
-
-            # Check modifiers
-            if '*Roasted Corn Grits' in modifier:
-                categories['Grits'] += qty
-            elif '*Zea Potatoes' in modifier:
-                categories['Pots'] += qty
-            elif '*Thai Green Beans' in modifier or '*Green Beans' in modifier:
-                categories['Corn'] += qty
-            elif '6oz' in modifier:
-                categories['6oz Mod'] += qty
-            elif '8oz' in modifier:
-                categories['8oz Mod'] += qty
-
-    # Process chicken items from Parent Menu Selection
-    if not items_df.empty:
-        chicken_items = items_df[items_df['Parent Menu Selection'].str.contains('Rotisserie Chicken', na=False)]
-        categories['1/2 Chix'] += chicken_items['Qty'].sum()
-
-    return categories
-
 def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
-    """Generate report data with all required calculations"""
-    if items_df is None or items_df.empty:
+    """Generate report data with simplified processing"""
+    if items_df.empty:
         return pd.DataFrame()
 
     # Create time intervals and service periods
-    items_df = create_time_intervals(items_df, interval_minutes)
-    items_df = get_service_periods(items_df)
+    items_df = items_df.copy()
+    modifiers_df = modifiers_df.copy() if modifiers_df is not None else pd.DataFrame()
 
-    if modifiers_df is not None and not modifiers_df.empty:
-        modifiers_df = create_time_intervals(modifiers_df, interval_minutes)
-        modifiers_df = get_service_periods(modifiers_df)
+    # Add hour and service columns
+    items_df['Hour'] = items_df['Order Date'].dt.hour
+    items_df['Service'] = items_df['Hour'].apply(lambda x: 'Lunch' if 6 <= x < 16 else 'Dinner')
+    items_df['Minute'] = items_df['Order Date'].dt.minute
+
+    if not modifiers_df.empty:
+        modifiers_df['Hour'] = modifiers_df['Order Date'].dt.hour
+        modifiers_df['Service'] = modifiers_df['Hour'].apply(lambda x: 'Lunch' if 6 <= x < 16 else 'Dinner')
+        modifiers_df['Minute'] = modifiers_df['Order Date'].dt.minute
+
+    # Create time intervals
+    def create_interval(hour, minute):
+        if interval_minutes == 30:
+            period = '30' if minute >= 30 else '00'
+            return f"{hour:02d}:{period}"
+        return f"{hour:02d}:00"
+
+    items_df['Interval'] = items_df.apply(
+        lambda x: create_interval(x['Hour'], x['Minute']), 
+        axis=1
+    )
+
+    if not modifiers_df.empty:
+        modifiers_df['Interval'] = modifiers_df.apply(
+            lambda x: create_interval(x['Hour'], x['Minute']), 
+            axis=1
+        )
 
     report_data = []
+
+    # Process each service period
     for service in ['Lunch', 'Dinner']:
-        service_items_df = items_df[items_df['Service'] == service]
+        # Filter for service
+        service_items = items_df[items_df['Service'] == service]
+        service_mods = modifiers_df[modifiers_df['Service'] == service] if not modifiers_df.empty else pd.DataFrame()
 
-        # Get intervals for this service period
-        intervals = sorted(service_items_df['Interval'].unique())
-
-        # Create service modifiers dataframe if modifiers exist
-        service_modifiers_df = None
-        if modifiers_df is not None and not modifiers_df.empty:
-            service_modifiers_df = modifiers_df[modifiers_df['Service'] == service]
+        # Get unique intervals
+        intervals = sorted(service_items['Interval'].unique()) if not service_items.empty else []
 
         for interval in intervals:
-            # Filter items for this interval
-            interval_items_df = service_items_df[service_items_df['Interval'] == interval]
-
-            # Filter modifiers for this interval if they exist
-            interval_modifiers_df = None
-            if service_modifiers_df is not None:
-                interval_modifiers_df = service_modifiers_df[service_modifiers_df['Interval'] == interval]
+            # Filter data for current interval
+            interval_items = service_items[service_items['Interval'] == interval]
+            interval_mods = service_mods[service_mods['Interval'] == interval] if not service_mods.empty else pd.DataFrame()
 
             # Calculate counts
-            counts = calculate_category_counts(interval_items_df, interval_modifiers_df)
-            total = sum(counts.values())
+            counts = {
+                '1/2 Chix': interval_items[interval_items['Parent Menu Selection'].str.contains('Rotisserie Chicken', na=False)]['Qty'].sum(),
+                '1/2 Ribs': interval_items[interval_items['Parent Menu Selection'].str.contains('(4) (Dry|Thai) Ribs', na=False, regex=True)]['Qty'].sum(),
+                'Full Ribs': interval_items[interval_items['Parent Menu Selection'].str.contains('(8) (Dry|Thai) Ribs', na=False, regex=True)]['Qty'].sum(),
+                '6oz Mod': interval_mods[interval_mods['Modifier'].str.contains('6oz', na=False)]['Qty'].sum() if not interval_mods.empty else 0,
+                '8oz Mod': interval_mods[interval_mods['Modifier'].str.contains('8oz', na=False)]['Qty'].sum() if not interval_mods.empty else 0,
+                'Corn': interval_mods[interval_mods['Modifier'].str.contains('*Thai Green Beans|*Green Beans', na=False, regex=True)]['Qty'].sum() if not interval_mods.empty else 0,
+                'Grits': interval_mods[interval_mods['Modifier'].str.contains('*Roasted Corn Grits', na=False)]['Qty'].sum() if not interval_mods.empty else 0,
+                'Pots': interval_mods[interval_mods['Modifier'].str.contains('*Zea Potatoes', na=False)]['Qty'].sum() if not interval_mods.empty else 0
+            }
 
-            # Create row data
+            # Add row
             row_data = {
                 'Service': service,
                 'Interval': interval,
                 **counts,
-                'Total': total
+                'Total': sum(counts.values())
             }
             report_data.append(row_data)
 
-    return pd.DataFrame(report_data)
+    # Create DataFrame and sort by service and interval
+    report_df = pd.DataFrame(report_data)
+    if not report_df.empty:
+        report_df = report_df.sort_values(['Service', 'Interval'])
+        report_df = report_df.fillna(0)
+        # Convert all numeric columns to integers
+        numeric_cols = ['1/2 Chix', '1/2 Ribs', 'Full Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Grits', 'Pots', 'Total']
+        report_df[numeric_cols] = report_df[numeric_cols].astype(int)
+
+    return report_df
