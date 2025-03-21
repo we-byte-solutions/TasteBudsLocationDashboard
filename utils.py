@@ -22,9 +22,9 @@ def load_data(items_file, modifiers_file):
         items_df['Order Date'] = pd.to_datetime(items_df['Order Date'])
         modifiers_df['Order Date'] = pd.to_datetime(modifiers_df['Order Date'])
 
-        # Convert Qty to numeric, handling 'false' values
-        items_df['Qty'] = pd.to_numeric(items_df['Qty'].replace('false', '0'), errors='coerce').fillna(0)
-        modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'].replace('false', '0'), errors='coerce').fillna(0)
+        # Convert Qty to numeric, handling any non-numeric values
+        items_df['Qty'] = pd.to_numeric(items_df['Qty'].replace({'false': '0', 'true': '0'}), errors='coerce').fillna(0)
+        modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'].replace({'false': '0', 'true': '0'}), errors='coerce').fillna(0)
 
         return items_df, modifiers_df
     except Exception as e:
@@ -32,7 +32,7 @@ def load_data(items_file, modifiers_file):
         return None, None
 
 def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
-    """Generate report data with simplified processing"""
+    """Generate report data with quantity-based counting"""
     if items_df is None or items_df.empty:
         return pd.DataFrame()
 
@@ -45,12 +45,6 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
         modifiers_df = modifiers_df.copy()
         modifiers_df['Void?'] = modifiers_df['Void?'].fillna('false').astype(str).str.lower()
         modifiers_df = modifiers_df[modifiers_df['Void?'] != 'true']
-
-    # Load category mappings
-    items_mapping, modifiers_mapping = load_category_mappings(
-        'attached_assets/Items_Category Details.xlsx',
-        'attached_assets/Modifiers_Category Details.xlsx'
-    )
 
     report_data = []
 
@@ -101,40 +95,57 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
                         interval_items = hour_items
                         interval_mods = hour_mods
 
-                    # Calculate counts based on category mappings
-                    counts = {
-                        '1/2 Chix': len(interval_mods[
+                    if not interval_mods.empty:
+                        # Count chicken based on White/Dark meat modifiers
+                        chicken_mods = interval_mods[
                             (interval_mods['Modifier'].str.contains('White Meat|Dark Meat', regex=True, case=False)) &
                             (interval_mods['Parent Menu Selection'].str.contains('Rotisserie Chicken', case=False))
-                        ]) if not interval_mods.empty else 0,
+                        ]
+                        chicken_count = chicken_mods['Qty'].sum()
 
-                        '1/2 Ribs': len(interval_items[
-                            interval_items['Menu Item'].str.contains('(4)', case=False)
-                        ]),
+                        # Count sides with quantity
+                        green_beans = interval_mods[
+                            interval_mods['Modifier'].str.contains(r'\*(?:Thai )?Green Beans', regex=True, case=False)
+                        ]['Qty'].sum()
 
-                        'Full Ribs': len(interval_items[
-                            interval_items['Menu Item'].str.contains('(8)', case=False)
-                        ]),
+                        grits = interval_mods[
+                            interval_mods['Modifier'].str.contains(r'\*Roasted Corn Grits', regex=True, case=False)
+                        ]['Qty'].sum()
 
-                        '6oz Mod': len(interval_mods[
+                        potatoes = interval_mods[
+                            interval_mods['Modifier'].str.contains(r'\*Zea Potatoes', regex=True, case=False)
+                        ]['Qty'].sum()
+
+                        # Count portion modifications
+                        six_oz = interval_mods[
                             interval_mods['Modifier'].str.contains('6oz', case=False)
-                        ]) if not interval_mods.empty else 0,
+                        ]['Qty'].sum()
 
-                        '8oz Mod': len(interval_mods[
+                        eight_oz = interval_mods[
                             interval_mods['Modifier'].str.contains('8oz', case=False)
-                        ]) if not interval_mods.empty else 0,
+                        ]['Qty'].sum()
+                    else:
+                        chicken_count = green_beans = grits = potatoes = six_oz = eight_oz = 0
 
-                        'Corn': len(interval_mods[
-                            interval_mods['Modifier'].str.contains('Green Beans', case=False)
-                        ]) if not interval_mods.empty else 0,
+                    # Count ribs with quantity
+                    half_ribs = interval_items[
+                        interval_items['Menu Item'].str.contains(r'\(4\)', regex=True, case=False)
+                    ]['Qty'].sum()
 
-                        'Grits': len(interval_mods[
-                            interval_mods['Modifier'].str.contains('Roasted Corn Grits', case=False)
-                        ]) if not interval_mods.empty else 0,
+                    full_ribs = interval_items[
+                        interval_items['Menu Item'].str.contains(r'\(8\)', regex=True, case=False)
+                    ]['Qty'].sum()
 
-                        'Pots': len(interval_mods[
-                            interval_mods['Modifier'].str.contains('Zea Potatoes', case=False)
-                        ]) if not interval_mods.empty else 0
+                    # Create counts dictionary
+                    counts = {
+                        '1/2 Chix': int(chicken_count),
+                        '1/2 Ribs': int(half_ribs),
+                        'Full Ribs': int(full_ribs),
+                        '6oz Mod': int(six_oz),
+                        '8oz Mod': int(eight_oz),
+                        'Corn': int(green_beans),
+                        'Grits': int(grits),
+                        'Pots': int(potatoes)
                     }
 
                     # Only add rows with non-zero totals
