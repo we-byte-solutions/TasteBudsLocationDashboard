@@ -36,22 +36,28 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
         modifiers_df['Hour'] = modifiers_df['Order Date'].dt.hour
         modifiers_df['Service'] = modifiers_df['Hour'].apply(lambda x: 'Lunch' if 6 <= x < 16 else 'Dinner')
 
+    # Filter out void items and ensure string columns
+    items_df['Void?'] = items_df['Void?'].fillna('false').astype(str).str.lower()
+    modifiers_df['Void?'] = modifiers_df['Void?'].fillna('false').astype(str).str.lower()
+
+    items_df = items_df[items_df['Void?'] != 'true']
+    modifiers_df = modifiers_df[modifiers_df['Void?'] != 'true']
+
+    # Ensure string columns for pattern matching
+    items_df['Menu Item'] = items_df['Menu Item'].fillna('').astype(str)
+    modifiers_df['Modifier'] = modifiers_df['Modifier'].fillna('').astype(str)
+    modifiers_df['Parent Menu Selection'] = modifiers_df['Parent Menu Selection'].fillna('').astype(str)
+
     report_data = []
 
     # Process each service period
     for service in ['Lunch', 'Dinner']:
-        # Filter by service
-        service_items = items_df[items_df['Service'] == service]
-        service_mods = modifiers_df[modifiers_df['Service'] == service] if modifiers_df is not None else pd.DataFrame()
+        service_hours = range(6, 16) if service == 'Lunch' else range(16, 24)
 
-        # Get unique hours
-        hours = sorted(set(service_items['Hour'].unique()) | 
-                      set(service_mods['Hour'].unique() if not service_mods.empty else []))
-
-        for hour in hours:
-            # Get data for this hour
-            hour_items = service_items[service_items['Hour'] == hour]
-            hour_mods = service_mods[service_mods['Hour'] == hour] if not service_mods.empty else pd.DataFrame()
+        for hour in service_hours:
+            # Get data for current hour
+            hour_items = items_df[items_df['Hour'] == hour]
+            hour_mods = modifiers_df[modifiers_df['Hour'] == hour] if not modifiers_df.empty else pd.DataFrame()
 
             # Create intervals
             minutes = [0] if interval_minutes == 60 else [0, 30]
@@ -72,52 +78,46 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
                     interval_mods = hour_mods
 
                 # Calculate counts
-                rotisserie_chicken = interval_items[
-                    interval_items['Menu Item'].str.contains('Rotisserie Chicken', case=False, na=False)
-                ]['Qty'].sum()
-
-                half_ribs = interval_items[
-                    interval_items['Menu Item'].str.contains(r'\(4\) (?:Dry|Thai) Ribs', case=False, na=False, regex=True)
-                ]['Qty'].sum()
-
-                full_ribs = interval_items[
-                    interval_items['Menu Item'].str.contains(r'\(8\) (?:Dry|Thai) Ribs', case=False, na=False, regex=True)
-                ]['Qty'].sum()
-
-                # Side dishes from modifiers
-                green_beans = interval_mods[
-                    interval_mods['Modifier'].str.contains(r'\*(?:Thai )?Green Beans', case=False, na=False, regex=True)
-                ]['Qty'].sum() if not interval_mods.empty else 0
-
-                grits = interval_mods[
-                    interval_mods['Modifier'].str.contains(r'\*Roasted Corn Grits', case=False, na=False, regex=True)
-                ]['Qty'].sum() if not interval_mods.empty else 0
-
-                potatoes = interval_mods[
-                    interval_mods['Modifier'].str.contains(r'\*Zea Potatoes', case=False, na=False, regex=True)
-                ]['Qty'].sum() if not interval_mods.empty else 0
-
-                # Portion modifications
-                six_oz = interval_mods[
-                    interval_mods['Modifier'].str.contains('6oz', case=False, na=False)
-                ]['Qty'].sum() if not interval_mods.empty else 0
-
-                eight_oz = interval_mods[
-                    interval_mods['Modifier'].str.contains('8oz', case=False, na=False)
-                ]['Qty'].sum() if not interval_mods.empty else 0
-
                 counts = {
-                    '1/2 Chix': rotisserie_chicken,
-                    '1/2 Ribs': half_ribs,
-                    'Full Ribs': full_ribs,
-                    '6oz Mod': six_oz,
-                    '8oz Mod': eight_oz,
-                    'Corn': green_beans,
-                    'Grits': grits,
-                    'Pots': potatoes
+                    # Count chicken using White/Dark meat modifiers
+                    '1/2 Chix': len(interval_mods[
+                        (interval_mods['Modifier'].str.contains('White Meat|Dark Meat', regex=True, case=False)) &
+                        (interval_mods['Parent Menu Selection'].str.contains('Rotisserie Chicken', case=False))
+                    ]),
+
+                    # Count ribs
+                    '1/2 Ribs': len(interval_items[
+                        interval_items['Menu Item'].str.contains(r'\(4\)', regex=True, case=False)
+                    ]),
+
+                    'Full Ribs': len(interval_items[
+                        interval_items['Menu Item'].str.contains(r'\(8\)', regex=True, case=False)
+                    ]),
+
+                    # Count portion modifications
+                    '6oz Mod': len(interval_mods[
+                        interval_mods['Modifier'].str.contains('6oz', case=False)
+                    ]),
+
+                    '8oz Mod': len(interval_mods[
+                        interval_mods['Modifier'].str.contains('8oz', case=False)
+                    ]),
+
+                    # Count sides with escaped asterisks
+                    'Corn': len(interval_mods[
+                        interval_mods['Modifier'].str.contains(r'\*Thai Green Beans|\*Green Beans', regex=True, case=False)
+                    ]),
+
+                    'Grits': len(interval_mods[
+                        interval_mods['Modifier'].str.contains(r'\*Roasted Corn Grits', regex=True, case=False)
+                    ]),
+
+                    'Pots': len(interval_mods[
+                        interval_mods['Modifier'].str.contains(r'\*Zea Potatoes', regex=True, case=False)
+                    ])
                 }
 
-                # Only add rows that have non-zero totals
+                # Add row if there are any non-zero counts
                 total = sum(counts.values())
                 if total > 0:
                     report_data.append({
