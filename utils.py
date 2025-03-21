@@ -1,5 +1,36 @@
 import pandas as pd
 import streamlit as st
+import openpyxl
+
+def load_category_mappings():
+    """Load category mappings from Excel file"""
+    try:
+        # Read the Excel file
+        items_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=0)
+        modifiers_df = pd.read_excel('attached_assets/Categories Current.xlsx', sheet_name=1)
+
+        # Create mappings from the first two columns
+        items_mapping = {}
+        modifiers_mapping = {}
+
+        # Process items mappings
+        for idx, row in items_df.iterrows():
+            item_name = str(row.iloc[0]).strip()
+            category = str(row.iloc[1]).strip()
+            if category in ['1/2 Chix', '1/2 Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Full Ribs', 'Grits', 'Pots']:
+                items_mapping[item_name] = category
+
+        # Process modifiers mappings
+        for idx, row in modifiers_df.iterrows():
+            modifier_name = str(row.iloc[0]).strip()
+            category = str(row.iloc[1]).strip()
+            if category in ['1/2 Chix', '1/2 Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Full Ribs', 'Grits', 'Pots']:
+                modifiers_mapping[modifier_name] = category
+
+        return items_mapping, modifiers_mapping
+    except Exception as e:
+        st.error(f"Error loading category mappings: {str(e)}")
+        return {}, {}
 
 def load_data(items_file, modifiers_file):
     """Load and preprocess sales data from CSV files"""
@@ -25,6 +56,9 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
     """Generate report data with simplified processing"""
     if modifiers_df is None or modifiers_df.empty:
         return pd.DataFrame()
+
+    # Load category mappings
+    items_mapping, modifiers_mapping = load_category_mappings()
 
     report_data = []
 
@@ -63,59 +97,40 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
                     interval_mods = hour_mods
 
                 if not interval_mods.empty:
-                    try:
-                        # Calculate category counts with escaped patterns
-                        counts = {
-                            # Count chicken based on White/Dark meat selections
-                            '1/2 Chix': interval_mods[
-                                interval_mods['Modifier'].str.contains('White Meat|Dark Meat', case=False, regex=True, na=False) &
-                                interval_mods['Parent Menu Selection'].str.contains('Rotisserie Chicken', case=False, regex=True, na=False)
-                            ]['Qty'].sum(),
+                    # Initialize category counts
+                    counts = {
+                        '1/2 Chix': 0,
+                        '1/2 Ribs': 0,
+                        'Full Ribs': 0,
+                        '6oz Mod': 0,
+                        '8oz Mod': 0,
+                        'Corn': 0,
+                        'Grits': 0,
+                        'Pots': 0
+                    }
 
-                            # Count ribs with escaped parentheses
-                            '1/2 Ribs': interval_mods[
-                                interval_mods['Parent Menu Selection'].str.contains(r'\(4\) (?:Dry|Thai) Ribs', case=False, regex=True, na=False)
-                            ]['Qty'].sum(),
+                    # Process modifiers using mappings
+                    for _, row in interval_mods.iterrows():
+                        modifier = str(row['Modifier']).strip()
+                        if modifier in modifiers_mapping:
+                            category = modifiers_mapping[modifier]
+                            counts[category] += row['Qty']
 
-                            'Full Ribs': interval_mods[
-                                interval_mods['Parent Menu Selection'].str.contains(r'\(8\) (?:Dry|Thai) Ribs', case=False, regex=True, na=False)
-                            ]['Qty'].sum(),
+                        # Check parent menu selection for items
+                        menu_item = str(row['Parent Menu Selection']).strip()
+                        if menu_item in items_mapping:
+                            category = items_mapping[menu_item]
+                            counts[category] += row['Qty']
 
-                            # Count sides with escaped asterisks
-                            'Corn': interval_mods[
-                                interval_mods['Modifier'].str.contains(r'\*(?:Thai Green Beans|\*Green Beans)', case=False, regex=True, na=False)
-                            ]['Qty'].sum(),
-
-                            'Grits': interval_mods[
-                                interval_mods['Modifier'].str.contains(r'\*Roasted Corn Grits', case=False, regex=True, na=False)
-                            ]['Qty'].sum(),
-
-                            'Pots': interval_mods[
-                                interval_mods['Modifier'].str.contains(r'\*Zea Potatoes', case=False, regex=True, na=False)
-                            ]['Qty'].sum(),
-
-                            # Count portion modifications
-                            '6oz Mod': interval_mods[
-                                interval_mods['Modifier'].str.contains('6oz', case=False, regex=False, na=False)
-                            ]['Qty'].sum(),
-
-                            '8oz Mod': interval_mods[
-                                interval_mods['Modifier'].str.contains('8oz', case=False, regex=False, na=False)
-                            ]['Qty'].sum()
-                        }
-
-                        # Only add rows that have non-zero totals
-                        total = sum(counts.values())
-                        if total > 0:
-                            report_data.append({
-                                'Service': service,
-                                'Interval': f"{hour:02d}:{minute:02d}",
-                                **counts,
-                                'Total': total
-                            })
-                    except Exception as e:
-                        st.error(f"Error processing interval {hour}:{minute}: {str(e)}")
-                        continue
+                    # Only add rows that have non-zero totals
+                    total = sum(counts.values())
+                    if total > 0:
+                        report_data.append({
+                            'Service': service,
+                            'Interval': f"{hour:02d}:{minute:02d}",
+                            **counts,
+                            'Total': total
+                        })
 
     # Create DataFrame and format
     if not report_data:
