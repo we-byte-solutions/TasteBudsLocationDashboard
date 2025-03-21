@@ -74,16 +74,40 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
             interval_items = service_items[service_items['Interval'] == interval]
             interval_mods = service_mods[service_mods['Interval'] == interval] if not service_mods.empty else pd.DataFrame()
 
-            # Calculate counts
+            # Calculate counts using safe string operations
             counts = {
-                '1/2 Chix': interval_items[interval_items['Parent Menu Selection'].str.contains('Rotisserie Chicken', na=False)]['Qty'].sum(),
-                '1/2 Ribs': interval_items[interval_items['Parent Menu Selection'].str.contains('(4) (Dry|Thai) Ribs', na=False, regex=True)]['Qty'].sum(),
-                'Full Ribs': interval_items[interval_items['Parent Menu Selection'].str.contains('(8) (Dry|Thai) Ribs', na=False, regex=True)]['Qty'].sum(),
-                '6oz Mod': interval_mods[interval_mods['Modifier'].str.contains('6oz', na=False)]['Qty'].sum() if not interval_mods.empty else 0,
-                '8oz Mod': interval_mods[interval_mods['Modifier'].str.contains('8oz', na=False)]['Qty'].sum() if not interval_mods.empty else 0,
-                'Corn': interval_mods[interval_mods['Modifier'].str.contains('*Thai Green Beans|*Green Beans', na=False, regex=True)]['Qty'].sum() if not interval_mods.empty else 0,
-                'Grits': interval_mods[interval_mods['Modifier'].str.contains('*Roasted Corn Grits', na=False)]['Qty'].sum() if not interval_mods.empty else 0,
-                'Pots': interval_mods[interval_mods['Modifier'].str.contains('*Zea Potatoes', na=False)]['Qty'].sum() if not interval_mods.empty else 0
+                '1/2 Chix': interval_mods[
+                    interval_mods['Modifier'].str.contains('Dark Meat|White Meat', na=False, regex=True) &
+                    interval_mods['Parent Menu Selection'].str.contains('Rotisserie Chicken', na=False)
+                ]['Qty'].sum(),
+
+                '1/2 Ribs': interval_mods[
+                    interval_mods['Parent Menu Selection'].str.contains('(4) (Dry|Thai) Ribs', na=False, regex=True)
+                ]['Qty'].sum(),
+
+                'Full Ribs': interval_mods[
+                    interval_mods['Parent Menu Selection'].str.contains('(8) (Dry|Thai) Ribs', na=False, regex=True)
+                ]['Qty'].sum(),
+
+                '6oz Mod': interval_mods[
+                    interval_mods['Modifier'].str.contains('6oz', na=False)
+                ]['Qty'].sum() if not interval_mods.empty else 0,
+
+                '8oz Mod': interval_mods[
+                    interval_mods['Modifier'].str.contains('8oz', na=False)
+                ]['Qty'].sum() if not interval_mods.empty else 0,
+
+                'Corn': interval_mods[
+                    interval_mods['Modifier'].str.contains('*Thai Green Beans|*Green Beans', na=False, regex=True)
+                ]['Qty'].sum() if not interval_mods.empty else 0,
+
+                'Grits': interval_mods[
+                    interval_mods['Modifier'].str.contains('*Roasted Corn Grits', na=False)
+                ]['Qty'].sum() if not interval_mods.empty else 0,
+
+                'Pots': interval_mods[
+                    interval_mods['Modifier'].str.contains('*Zea Potatoes', na=False)
+                ]['Qty'].sum() if not interval_mods.empty else 0
             }
 
             # Add row
