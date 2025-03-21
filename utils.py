@@ -26,106 +26,120 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
     if items_df is None or items_df.empty:
         return pd.DataFrame()
 
-    # Add hour and service columns
+    # Filter out void items and ensure string columns
     items_df = items_df.copy()
-    items_df['Hour'] = items_df['Order Date'].dt.hour
-    items_df['Service'] = items_df['Hour'].apply(lambda x: 'Lunch' if 6 <= x < 16 else 'Dinner')
+    items_df['Void?'] = items_df['Void?'].fillna('false').astype(str).str.lower()
+    items_df = items_df[items_df['Void?'] != 'true']
 
     if modifiers_df is not None and not modifiers_df.empty:
         modifiers_df = modifiers_df.copy()
-        modifiers_df['Hour'] = modifiers_df['Order Date'].dt.hour
-        modifiers_df['Service'] = modifiers_df['Hour'].apply(lambda x: 'Lunch' if 6 <= x < 16 else 'Dinner')
-
-    # Filter out void items and ensure string columns
-    items_df['Void?'] = items_df['Void?'].fillna('false').astype(str).str.lower()
-    modifiers_df['Void?'] = modifiers_df['Void?'].fillna('false').astype(str).str.lower()
-
-    items_df = items_df[items_df['Void?'] != 'true']
-    modifiers_df = modifiers_df[modifiers_df['Void?'] != 'true']
+        modifiers_df['Void?'] = modifiers_df['Void?'].fillna('false').astype(str).str.lower()
+        modifiers_df = modifiers_df[modifiers_df['Void?'] != 'true']
 
     # Ensure string columns for pattern matching
     items_df['Menu Item'] = items_df['Menu Item'].fillna('').astype(str)
-    modifiers_df['Modifier'] = modifiers_df['Modifier'].fillna('').astype(str)
-    modifiers_df['Parent Menu Selection'] = modifiers_df['Parent Menu Selection'].fillna('').astype(str)
+    if modifiers_df is not None:
+        modifiers_df['Modifier'] = modifiers_df['Modifier'].fillna('').astype(str)
+        modifiers_df['Parent Menu Selection'] = modifiers_df['Parent Menu Selection'].fillna('').astype(str)
 
     report_data = []
 
-    # Process each service period
-    for service in ['Lunch', 'Dinner']:
-        service_hours = range(6, 16) if service == 'Lunch' else range(16, 24)
+    # Group data by date
+    dates = sorted(items_df['Order Date'].dt.date.unique())
 
-        for hour in service_hours:
-            # Get data for current hour
-            hour_items = items_df[items_df['Hour'] == hour]
-            hour_mods = modifiers_df[modifiers_df['Hour'] == hour] if not modifiers_df.empty else pd.DataFrame()
+    for date in dates:
+        # Filter data for current date
+        date_items = items_df[items_df['Order Date'].dt.date == date]
+        date_mods = modifiers_df[modifiers_df['Order Date'].dt.date == date] if modifiers_df is not None else pd.DataFrame()
 
-            # Create intervals
-            minutes = [0] if interval_minutes == 60 else [0, 30]
+        # Process each service period
+        for service in ['Lunch', 'Dinner']:
+            # Set service hours
+            service_start = 6 if service == 'Lunch' else 16
+            service_end = 16 if service == 'Lunch' else 24
 
-            for minute in minutes:
-                # Filter data for current interval
-                if interval_minutes == 30:
-                    interval_items = hour_items[
-                        (hour_items['Order Date'].dt.minute >= minute) &
-                        (hour_items['Order Date'].dt.minute < minute + 30)
-                    ]
-                    interval_mods = hour_mods[
-                        (hour_mods['Order Date'].dt.minute >= minute) &
-                        (hour_mods['Order Date'].dt.minute < minute + 30)
-                    ] if not hour_mods.empty else pd.DataFrame()
-                else:
-                    interval_items = hour_items
-                    interval_mods = hour_mods
+            # Filter by service hours
+            service_items = date_items[
+                (date_items['Order Date'].dt.hour >= service_start) &
+                (date_items['Order Date'].dt.hour < service_end)
+            ]
+            service_mods = date_mods[
+                (date_mods['Order Date'].dt.hour >= service_start) &
+                (date_mods['Order Date'].dt.hour < service_end)
+            ] if not date_mods.empty else pd.DataFrame()
 
-                # Calculate counts
-                counts = {
-                    # Count chicken using White/Dark meat modifiers
-                    '1/2 Chix': len(interval_mods[
-                        (interval_mods['Modifier'].str.contains('White Meat|Dark Meat', regex=True, case=False)) &
-                        (interval_mods['Parent Menu Selection'].str.contains('Rotisserie Chicken', case=False))
-                    ]),
+            # Process each hour
+            for hour in range(service_start, service_end):
+                # Get data for current hour
+                hour_items = service_items[service_items['Order Date'].dt.hour == hour]
+                hour_mods = service_mods[service_mods['Order Date'].dt.hour == hour] if not service_mods.empty else pd.DataFrame()
 
-                    # Count ribs
-                    '1/2 Ribs': len(interval_items[
-                        interval_items['Menu Item'].str.contains(r'\(4\)', regex=True, case=False)
-                    ]),
+                # Process intervals
+                minutes = [0] if interval_minutes == 60 else [0, 30]
+                for minute in minutes:
+                    # Filter data for current interval
+                    if interval_minutes == 30:
+                        interval_items = hour_items[
+                            (hour_items['Order Date'].dt.minute >= minute) &
+                            (hour_items['Order Date'].dt.minute < minute + 30)
+                        ]
+                        interval_mods = hour_mods[
+                            (hour_mods['Order Date'].dt.minute >= minute) &
+                            (hour_mods['Order Date'].dt.minute < minute + 30)
+                        ] if not hour_mods.empty else pd.DataFrame()
+                    else:
+                        interval_items = hour_items
+                        interval_mods = hour_mods
 
-                    'Full Ribs': len(interval_items[
-                        interval_items['Menu Item'].str.contains(r'\(8\)', regex=True, case=False)
-                    ]),
+                    # Calculate counts
+                    counts = {
+                        # Count chicken using White/Dark meat modifiers
+                        '1/2 Chix': len(interval_mods[
+                            (interval_mods['Modifier'].str.contains('White Meat|Dark Meat', regex=True, case=False)) &
+                            (interval_mods['Parent Menu Selection'].str.contains('Rotisserie Chicken', case=False))
+                        ]) if not interval_mods.empty else 0,
 
-                    # Count portion modifications
-                    '6oz Mod': len(interval_mods[
-                        interval_mods['Modifier'].str.contains('6oz', case=False)
-                    ]),
+                        # Count ribs
+                        '1/2 Ribs': len(interval_items[
+                            interval_items['Menu Item'].str.contains(r'\(4\)', regex=True, case=False)
+                        ]),
 
-                    '8oz Mod': len(interval_mods[
-                        interval_mods['Modifier'].str.contains('8oz', case=False)
-                    ]),
+                        'Full Ribs': len(interval_items[
+                            interval_items['Menu Item'].str.contains(r'\(8\)', regex=True, case=False)
+                        ]),
 
-                    # Count sides with escaped asterisks
-                    'Corn': len(interval_mods[
-                        interval_mods['Modifier'].str.contains(r'\*Thai Green Beans|\*Green Beans', regex=True, case=False)
-                    ]),
+                        # Count portion modifications
+                        '6oz Mod': len(interval_mods[
+                            interval_mods['Modifier'].str.contains('6oz', case=False)
+                        ]) if not interval_mods.empty else 0,
 
-                    'Grits': len(interval_mods[
-                        interval_mods['Modifier'].str.contains(r'\*Roasted Corn Grits', regex=True, case=False)
-                    ]),
+                        '8oz Mod': len(interval_mods[
+                            interval_mods['Modifier'].str.contains('8oz', case=False)
+                        ]) if not interval_mods.empty else 0,
 
-                    'Pots': len(interval_mods[
-                        interval_mods['Modifier'].str.contains(r'\*Zea Potatoes', regex=True, case=False)
-                    ])
-                }
+                        # Count sides with escaped asterisks
+                        'Corn': len(interval_mods[
+                            interval_mods['Modifier'].str.contains(r'\*(?:Thai )?Green Beans', regex=True, case=False)
+                        ]) if not interval_mods.empty else 0,
 
-                # Add row if there are any non-zero counts
-                total = sum(counts.values())
-                if total > 0:
-                    report_data.append({
-                        'Service': service,
-                        'Interval': f"{hour:02d}:{minute:02d}",
-                        **counts,
-                        'Total': total
-                    })
+                        'Grits': len(interval_mods[
+                            interval_mods['Modifier'].str.contains(r'\*Roasted Corn Grits', regex=True, case=False)
+                        ]) if not interval_mods.empty else 0,
+
+                        'Pots': len(interval_mods[
+                            interval_mods['Modifier'].str.contains(r'\*Zea Potatoes', regex=True, case=False)
+                        ]) if not interval_mods.empty else 0
+                    }
+
+                    # Add row if there are any non-zero counts
+                    total = sum(counts.values())
+                    if total > 0:
+                        report_data.append({
+                            'Service': service,
+                            'Interval': f"{hour:02d}:{minute:02d}",
+                            **counts,
+                            'Total': total
+                        })
 
     # Create DataFrame and format
     if not report_data:
