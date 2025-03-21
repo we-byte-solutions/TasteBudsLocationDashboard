@@ -187,18 +187,19 @@ st.dataframe(
     report_df,
     hide_index=True,
     use_container_width=True,
+    height=600,  # Set a fixed height that shows all content
     column_config={
-        'Service': st.column_config.TextColumn('Service', width='medium'),
-        'Interval': st.column_config.TextColumn('Time', width='medium'),
-        '1/2 Chix': st.column_config.NumberColumn('1/2 Chix', format='%d'),
-        '1/2 Ribs': st.column_config.NumberColumn('1/2 Ribs', format='%d'),
-        'Full Ribs': st.column_config.NumberColumn('Full Ribs', format='%d'),
-        '6oz Mod': st.column_config.NumberColumn('6oz Mod', format='%d'),
-        '8oz Mod': st.column_config.NumberColumn('8oz Mod', format='%d'),
-        'Corn': st.column_config.NumberColumn('Corn', format='%d'),
-        'Grits': st.column_config.NumberColumn('Grits', format='%d'),
-        'Pots': st.column_config.NumberColumn('Pots', format='%d'),
-        'Total': st.column_config.NumberColumn('Total', format='%d')
+        'Service': st.column_config.TextColumn('Service', width='small'),
+        'Interval': st.column_config.TextColumn('Time', width='small'),
+        '1/2 Chix': st.column_config.NumberColumn('1/2 Chix', format='%d', width='small'),
+        '1/2 Ribs': st.column_config.NumberColumn('1/2 Ribs', format='%d', width='small'),
+        'Full Ribs': st.column_config.NumberColumn('Full Ribs', format='%d', width='small'),
+        '6oz Mod': st.column_config.NumberColumn('6oz Mod', format='%d', width='small'),
+        '8oz Mod': st.column_config.NumberColumn('8oz Mod', format='%d', width='small'),
+        'Corn': st.column_config.NumberColumn('Corn', format='%d', width='small'),
+        'Grits': st.column_config.NumberColumn('Grits', format='%d', width='small'),
+        'Pots': st.column_config.NumberColumn('Pots', format='%d', width='small'),
+        'Total': st.column_config.NumberColumn('Total', format='%d', width='small')
     }
 )
 

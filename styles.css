@@ -22,12 +22,12 @@ div[data-testid="stTable"] {
 
 .report-title {
     text-align: center;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
 }
 
 .logo-container {
     text-align: left;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
     padding: 1rem;
     padding-left: calc(0.25in + 1rem);
 }
@@ -35,4 +35,26 @@ div[data-testid="stTable"] {
 .logo-container img {
     max-width: 150px;
     height: auto;
+}
+
+/* Adjust table layout */
+div.element-container div[data-testid="stDataFrame"] {
+    padding: 0.5rem 0;
+}
+
+/* Compact header spacing */
+h1.report-title, h2.report-title, h3.report-title {
+    margin: 0.5rem 0;
+    padding: 0;
+    line-height: 1.2;
+}
+
+/* Main container padding */
+section[data-testid="stSidebar"] {
+    padding-top: 1rem;
+}
+
+/* Table cell padding */
+div[data-testid="stDataFrame"] td {
+    padding: 0.25rem 0.5rem !important;
 }
