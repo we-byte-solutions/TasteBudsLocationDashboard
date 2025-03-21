@@ -117,10 +117,11 @@ else:
 # Date filter
 dates = sorted(st.session_state.items_df['Order Date'].dt.date.unique()) if st.session_state.items_df is not None else []
 if dates:
+    fixed_start_date = pd.to_datetime('2025-03-01').date()
     selected_date = st.sidebar.date_input(
         'Date',
-        value=dates[0],
-        min_value=dates[0],
+        value=fixed_start_date if fixed_start_date in dates else dates[0],
+        min_value=fixed_start_date,
         max_value=dates[-1]
     )
 else:
