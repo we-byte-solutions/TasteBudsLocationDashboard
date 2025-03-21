@@ -54,12 +54,8 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
     for date in dates:
         # Filter data for current date
         date_items = items_df[items_df['Order Date'].dt.date == date]
-        date_mods = modifiers_df[modifiers_df['Order Date'].dt.date == date] if not modifiers_df.empty else pd.DataFrame()
+        date_mods = modifiers_df[modifiers_df['Order Date'].dt.date == date] if modifiers_df is not None else pd.DataFrame()
 
-        # Debug - Show daily data
-        st.write(f"\nProcessing date: {date}")
-        st.write("Items records:", len(date_items))
-        st.write("Modifiers records:", len(date_mods))
 
         # Process each service period
         for service in ['Lunch', 'Dinner']:
@@ -76,9 +72,6 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
                 (date_mods['Order Date'].dt.hour >= start_hour) &
                 (date_mods['Order Date'].dt.hour < end_hour)
             ] if not date_mods.empty else pd.DataFrame()
-
-            st.write(f"\n{service} service:")
-            st.write(f"Items: {len(service_items)}, Modifiers: {len(service_mods)}")
 
             # Process each hour
             for hour in range(start_hour, end_hour):
@@ -103,29 +96,16 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
                         interval_items = hour_items
                         interval_mods = hour_mods
 
-                    st.write(f"\nInterval {hour:02d}:{minute:02d}")
-
                     # Count chicken
-                    chicken_mods = interval_mods[
+                    chicken_count = interval_mods[
                         (interval_mods['Modifier'].str.contains('White Meat|Dark Meat', regex=True, case=False)) &
                         (interval_mods['Parent Menu Selection'].str.contains('Rotisserie Chicken', case=False))
-                    ] if not interval_mods.empty else pd.DataFrame()
-
-                    if not chicken_mods.empty:
-                        st.write("\nChicken orders:")
-                        st.write(chicken_mods[['Order Id', 'Modifier', 'Parent Menu Selection', 'Qty']])
-
-                    chicken_count = chicken_mods.groupby('Order Id')['Qty'].sum().sum() if not chicken_mods.empty else 0
+                    ].groupby('Order Id')['Qty'].sum().sum() if not interval_mods.empty else 0
 
                     # Count ribs
                     ribs_items = interval_items[
                         interval_items['Menu Item'].str.contains(r'\(4\)|\(8\)', regex=True, case=False)
                     ]
-
-                    if not ribs_items.empty:
-                        st.write("\nRibs orders:")
-                        st.write(ribs_items[['Order Id', 'Menu Item', 'Qty']])
-
                     half_ribs = ribs_items[
                         ribs_items['Menu Item'].str.contains(r'\(4\)', regex=True, case=False)
                     ].groupby('Order Id')['Qty'].sum().sum()
@@ -142,10 +122,6 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
                             case=False
                         )
                     ] if not interval_mods.empty else pd.DataFrame()
-
-                    if not sides_mods.empty:
-                        st.write("\nSides orders:")
-                        st.write(sides_mods[['Order Id', 'Item Selection Id', 'Modifier', 'Qty']])
 
                     green_beans = sides_mods[
                         sides_mods['Modifier'].str.contains(r'\*(?:Thai )?Green Beans', regex=True, case=False)
@@ -164,10 +140,6 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
                         interval_mods['Modifier'].str.contains('6oz|8oz', regex=True, case=False)
                     ] if not interval_mods.empty else pd.DataFrame()
 
-                    if not portion_mods.empty:
-                        st.write("\nPortion modifications:")
-                        st.write(portion_mods[['Order Id', 'Item Selection Id', 'Modifier', 'Qty']])
-
                     six_oz = portion_mods[
                         portion_mods['Modifier'].str.contains('6oz', case=False)
                     ].groupby(['Order Id', 'Item Selection Id'])['Qty'].sum().sum() if not portion_mods.empty else 0
@@ -176,7 +148,6 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
                         portion_mods['Modifier'].str.contains('8oz', case=False)
                     ].groupby(['Order Id', 'Item Selection Id'])['Qty'].sum().sum() if not portion_mods.empty else 0
 
-                    # Show interval counts
                     counts = {
                         '1/2 Chix': int(chicken_count),
                         '1/2 Ribs': int(half_ribs),
@@ -187,8 +158,6 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
                         'Grits': int(grits),
                         'Pots': int(potatoes)
                     }
-
-                    st.write("\nInterval counts:", counts)
 
                     # Add row if there are any non-zero counts
                     total = sum(counts.values())
