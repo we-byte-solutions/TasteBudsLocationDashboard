@@ -54,7 +54,7 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
     for date in dates:
         # Filter data for current date
         date_items = items_df[items_df['Order Date'].dt.date == date]
-        date_mods = modifiers_df[modifiers_df['Order Date'].dt.date == date] if modifiers_df is not None else pd.DataFrame()
+        date_mods = modifiers_df[modifiers_df['Order Date'].dt.date == date] if not modifiers_df.empty else pd.DataFrame()
 
         # Process each service period
         for service in ['Lunch', 'Dinner']:
@@ -95,46 +95,60 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
                         interval_items = hour_items
                         interval_mods = hour_mods
 
+                    # Calculate counts
                     if not interval_mods.empty:
-                        # Count chicken based on White/Dark meat modifiers
+                        # Count chicken - group by Order Id to avoid double counting
                         chicken_mods = interval_mods[
                             (interval_mods['Modifier'].str.contains('White Meat|Dark Meat', regex=True, case=False)) &
                             (interval_mods['Parent Menu Selection'].str.contains('Rotisserie Chicken', case=False))
+                        ].groupby('Order Id')['Qty'].sum()
+                        chicken_count = chicken_mods.sum()
+
+                        # Count sides using Order Id and Item Selection Id
+                        sides_mods = interval_mods[
+                            interval_mods['Modifier'].str.contains(
+                                r'\*(?:Thai )?Green Beans|\*Roasted Corn Grits|\*Zea Potatoes',
+                                regex=True,
+                                case=False
+                            )
                         ]
-                        chicken_count = chicken_mods['Qty'].sum()
+                        green_beans = sides_mods[
+                            sides_mods['Modifier'].str.contains(r'\*(?:Thai )?Green Beans', regex=True, case=False)
+                        ].groupby(['Order Id', 'Item Selection Id'])['Qty'].sum().sum()
 
-                        # Count sides with quantity
-                        green_beans = interval_mods[
-                            interval_mods['Modifier'].str.contains(r'\*(?:Thai )?Green Beans', regex=True, case=False)
-                        ]['Qty'].sum()
+                        grits = sides_mods[
+                            sides_mods['Modifier'].str.contains(r'\*Roasted Corn Grits', regex=True, case=False)
+                        ].groupby(['Order Id', 'Item Selection Id'])['Qty'].sum().sum()
 
-                        grits = interval_mods[
-                            interval_mods['Modifier'].str.contains(r'\*Roasted Corn Grits', regex=True, case=False)
-                        ]['Qty'].sum()
-
-                        potatoes = interval_mods[
-                            interval_mods['Modifier'].str.contains(r'\*Zea Potatoes', regex=True, case=False)
-                        ]['Qty'].sum()
+                        potatoes = sides_mods[
+                            sides_mods['Modifier'].str.contains(r'\*Zea Potatoes', regex=True, case=False)
+                        ].groupby(['Order Id', 'Item Selection Id'])['Qty'].sum().sum()
 
                         # Count portion modifications
-                        six_oz = interval_mods[
-                            interval_mods['Modifier'].str.contains('6oz', case=False)
-                        ]['Qty'].sum()
+                        portion_mods = interval_mods[
+                            interval_mods['Modifier'].str.contains('6oz|8oz', regex=True, case=False)
+                        ]
+                        six_oz = portion_mods[
+                            portion_mods['Modifier'].str.contains('6oz', case=False)
+                        ].groupby(['Order Id', 'Item Selection Id'])['Qty'].sum().sum()
 
-                        eight_oz = interval_mods[
-                            interval_mods['Modifier'].str.contains('8oz', case=False)
-                        ]['Qty'].sum()
+                        eight_oz = portion_mods[
+                            portion_mods['Modifier'].str.contains('8oz', case=False)
+                        ].groupby(['Order Id', 'Item Selection Id'])['Qty'].sum().sum()
                     else:
                         chicken_count = green_beans = grits = potatoes = six_oz = eight_oz = 0
 
-                    # Count ribs with quantity
-                    half_ribs = interval_items[
-                        interval_items['Menu Item'].str.contains(r'\(4\)', regex=True, case=False)
-                    ]['Qty'].sum()
+                    # Count ribs - group by Order Id to avoid double counting
+                    ribs_items = interval_items[
+                        interval_items['Menu Item'].str.contains(r'\(4\)|\(8\)', regex=True, case=False)
+                    ]
+                    half_ribs = ribs_items[
+                        ribs_items['Menu Item'].str.contains(r'\(4\)', regex=True, case=False)
+                    ].groupby('Order Id')['Qty'].sum().sum()
 
-                    full_ribs = interval_items[
-                        interval_items['Menu Item'].str.contains(r'\(8\)', regex=True, case=False)
-                    ]['Qty'].sum()
+                    full_ribs = ribs_items[
+                        ribs_items['Menu Item'].str.contains(r'\(8\)', regex=True, case=False)
+                    ].groupby('Order Id')['Qty'].sum().sum()
 
                     # Create counts dictionary
                     counts = {
