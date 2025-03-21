@@ -8,12 +8,6 @@ def load_data(items_file, modifiers_file):
         items_df = pd.read_csv(items_file)
         modifiers_df = pd.read_csv(modifiers_file)
 
-        # Debug print column names
-        st.write("Items columns:", items_df.columns.tolist())
-        st.write("Modifiers columns:", modifiers_df.columns.tolist())
-        st.write("Sample items data:", items_df.head())
-        st.write("Sample modifiers data:", modifiers_df.head())
-
         # Convert date columns to datetime
         items_df['Order Date'] = pd.to_datetime(items_df['Order Date'])
         modifiers_df['Order Date'] = pd.to_datetime(modifiers_df['Order Date'])
@@ -30,11 +24,7 @@ def load_data(items_file, modifiers_file):
 def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
     """Generate report data with simplified processing"""
     if items_df is None or items_df.empty:
-        st.error("No items data available")
         return pd.DataFrame()
-
-    st.write("Processing data with:", len(items_df), "items and", 
-             len(modifiers_df) if modifiers_df is not None else 0, "modifiers")
 
     # Add hour and service columns
     items_df = items_df.copy()
@@ -50,8 +40,6 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
 
     # Process each service period
     for service in ['Lunch', 'Dinner']:
-        st.write(f"Processing {service} service")
-
         # Filter by service
         service_items = items_df[items_df['Service'] == service]
         service_mods = modifiers_df[modifiers_df['Service'] == service] if modifiers_df is not None else pd.DataFrame()
@@ -59,8 +47,6 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
         # Get unique hours
         hours = sorted(set(service_items['Hour'].unique()) | 
                       set(service_mods['Hour'].unique() if not service_mods.empty else []))
-
-        st.write(f"Hours for {service}:", hours)
 
         for hour in hours:
             # Get data for this hour
@@ -131,8 +117,6 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
                     'Pots': potatoes
                 }
 
-                st.write(f"Counts for {service} {hour:02d}:{minute:02d}:", counts)
-
                 # Only add rows that have non-zero totals
                 total = sum(counts.values())
                 if total > 0:
@@ -145,7 +129,6 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
 
     # Create DataFrame and format
     if not report_data:
-        st.error("No report data generated")
         return pd.DataFrame()
 
     report_df = pd.DataFrame(report_data)
@@ -156,5 +139,4 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
     numeric_cols = ['1/2 Chix', '1/2 Ribs', 'Full Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Grits', 'Pots', 'Total']
     report_df[numeric_cols] = report_df[numeric_cols].astype(int)
 
-    st.write("Final report shape:", report_df.shape)
     return report_df
