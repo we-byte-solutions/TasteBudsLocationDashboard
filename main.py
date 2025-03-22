@@ -21,8 +21,6 @@ if 'items_df' not in st.session_state:
     st.session_state.items_df = None
 if 'modifiers_df' not in st.session_state:
     st.session_state.modifiers_df = None
-if 'interval' not in st.session_state:
-    st.session_state.interval = '1 hour'
 
 # Load available locations and dates from database
 db_locations, db_dates = utils.get_available_locations_and_dates()
@@ -64,13 +62,6 @@ else:
     st.sidebar.error("No dates available")
     selected_date = None
 
-# Time interval filter
-interval = st.sidebar.radio(
-    'Time Interval',
-    options=['1 hour', '30 minutes'],
-    horizontal=True,
-    key='interval'
-)
 
 # Data upload section
 st.sidebar.title('Data Upload')
@@ -110,7 +101,6 @@ if items_file and modifiers_file:
                 st.session_state.selected_location = st.session_state.locations[0] if st.session_state.locations else None
 
             # Generate and save report data for new dates
-            interval_minutes = 30 if st.session_state.interval == '30 minutes' else 60
             new_dates = set(new_items_df['Order Date'].dt.date)
 
             for date in new_dates:
@@ -126,7 +116,7 @@ if items_file and modifiers_file:
                     ]
 
                     # Generate and save report data
-                    report_df = utils.generate_report_data(date_items, date_mods, interval_minutes)
+                    report_df = utils.generate_report_data(date_items, date_mods)
                     if not report_df.empty:
                         utils.save_report_data(date, location, report_df)
 
