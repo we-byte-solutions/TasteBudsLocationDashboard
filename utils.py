@@ -305,3 +305,22 @@ def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
     report_df[numeric_cols] = report_df[numeric_cols].fillna(0).astype(int)
 
     return report_df
+
+def get_available_locations_and_dates():
+    """Retrieve available locations and dates from database"""
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT DISTINCT location, order_date
+                FROM new_sales_data
+                ORDER BY location, order_date DESC
+            """))
+
+            data = result.fetchall()
+            locations = sorted(set(row[0] for row in data))
+            dates = sorted(set(row[1] for row in data))
+
+            return locations, dates
+    except Exception as e:
+        st.error(f"Error retrieving locations and dates: {str(e)}")
+        return [], []

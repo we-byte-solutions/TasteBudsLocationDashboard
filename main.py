@@ -23,10 +23,16 @@ if 'modifiers_df' not in st.session_state:
     st.session_state.modifiers_df = None
 if 'interval' not in st.session_state:
     st.session_state.interval = '1 hour'
+
+# Load available locations and dates from database
+db_locations, db_dates = utils.get_available_locations_and_dates()
+
+# Initialize locations and selected_location if not in session state
 if 'locations' not in st.session_state:
-    st.session_state.locations = []
+    st.session_state.locations = db_locations
 if 'selected_location' not in st.session_state:
-    st.session_state.selected_location = None
+    st.session_state.selected_location = db_locations[0] if db_locations else None
+
 
 # Sidebar
 st.sidebar.title('Data Upload')
@@ -35,8 +41,6 @@ st.sidebar.title('Data Upload')
 if st.sidebar.button('Clear Uploaded Data', type='primary', use_container_width=True):
     st.session_state.items_df = None
     st.session_state.modifiers_df = None
-    st.session_state.locations = []
-    st.session_state.selected_location = None
     st.rerun()
 
 # File upload section
@@ -62,39 +66,33 @@ if items_file and modifiers_file:
             st.sidebar.write(f"Items rows: {len(new_items_df)}")
             st.sidebar.write(f"Modifiers rows: {len(new_modifiers_df)}")
 
-            # Initialize if no existing data
-            if st.session_state.items_df is None:
-                st.session_state.items_df = new_items_df
-                st.session_state.modifiers_df = new_modifiers_df
-            else:
-                # Get dates from new data
-                new_dates = set(new_items_df['Order Date'].dt.date)
+            # Store uploaded data
+            st.session_state.items_df = new_items_df
+            st.session_state.modifiers_df = new_modifiers_df
 
-                # Remove old data for dates that are in new upload
-                old_items = st.session_state.items_df[~st.session_state.items_df['Order Date'].dt.date.isin(new_dates)]
-                old_modifiers = st.session_state.modifiers_df[~st.session_state.modifiers_df['Order Date'].dt.date.isin(new_dates)]
+            # Get new locations from uploaded data
+            new_locations = sorted(new_items_df['Location'].unique())
 
-                # Combine with new data
-                st.session_state.items_df = pd.concat([old_items, new_items_df])
-                st.session_state.modifiers_df = pd.concat([old_modifiers, new_modifiers_df])
+            # Update locations list while preserving historical locations
+            st.session_state.locations = sorted(set(db_locations + new_locations))
 
-            # Update locations list
-            st.session_state.locations = sorted(st.session_state.items_df['Location'].unique())
             if st.session_state.selected_location not in st.session_state.locations:
                 st.session_state.selected_location = st.session_state.locations[0] if st.session_state.locations else None
 
             # Generate and save report data for new dates
             interval_minutes = 30 if st.session_state.interval == '30 minutes' else 60
+            new_dates = set(new_items_df['Order Date'].dt.date)
+
             for date in new_dates:
                 # Filter data for date and each location
-                for location in st.session_state.locations:
-                    date_items = st.session_state.items_df[
-                        (st.session_state.items_df['Order Date'].dt.date == date) &
-                        (st.session_state.items_df['Location'] == location)
+                for location in new_locations:
+                    date_items = new_items_df[
+                        (new_items_df['Order Date'].dt.date == date) &
+                        (new_items_df['Location'] == location)
                     ]
-                    date_mods = st.session_state.modifiers_df[
-                        (st.session_state.modifiers_df['Order Date'].dt.date == date) &
-                        (st.session_state.modifiers_df['Location'] == location)
+                    date_mods = new_modifiers_df[
+                        (new_modifiers_df['Order Date'].dt.date == date) &
+                        (new_modifiers_df['Location'] == location)
                     ]
 
                     # Generate and save report data
@@ -118,20 +116,23 @@ if st.session_state.locations:
     )
     st.session_state.selected_location = selected_location
 else:
-    st.sidebar.error("No locations available in the data")
+    st.sidebar.error("No locations available")
     selected_location = None
 
-# Date filter
-dates = sorted(st.session_state.items_df['Order Date'].dt.date.unique()) if st.session_state.items_df is not None else []
+# Date filter - Use dates from database if no uploaded data
+dates = sorted(set(db_dates))
+if st.session_state.items_df is not None:
+    dates = sorted(set(dates + list(st.session_state.items_df['Order Date'].dt.date.unique())))
+
 if dates:
     selected_date = st.sidebar.date_input(
         'Date',
-        value=dates[0],
+        value=dates[-1],  # Default to most recent date
         min_value=dates[0],
         max_value=dates[-1]
     )
 else:
-    st.sidebar.error("No dates available in the data")
+    st.sidebar.error("No dates available")
     selected_date = None
 
 # Display logo
