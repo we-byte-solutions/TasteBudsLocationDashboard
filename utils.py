@@ -31,6 +31,37 @@ def init_db():
         """))
         conn.commit()
 
+def load_data(items_file, modifiers_file):
+    """Load and preprocess sales data from CSV files"""
+    try:
+        # Read CSV files
+        items_df = pd.read_csv(items_file)
+        modifiers_df = pd.read_csv(modifiers_file)
+
+        # Ensure string columns are properly handled
+        string_columns = ['Menu Item', 'Modifier', 'Parent Menu Selection', 'Location', 'Void?']
+        for df in [items_df, modifiers_df]:
+            for col in string_columns:
+                if col in df.columns:
+                    df[col] = df[col].astype(str)
+
+        # Convert date columns to datetime
+        items_df['Order Date'] = pd.to_datetime(items_df['Order Date'])
+        modifiers_df['Order Date'] = pd.to_datetime(modifiers_df['Order Date'])
+
+        # Convert Qty to numeric, handling any non-numeric values
+        items_df['Qty'] = pd.to_numeric(items_df['Qty'].replace({'false': '0', 'true': '0'}), errors='coerce').fillna(0)
+        modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'].replace({'false': '0', 'true': '0'}), errors='coerce').fillna(0)
+
+        # Filter out void items (convert to lowercase for comparison)
+        items_df = items_df[items_df['Void?'].str.lower().replace({'nan': 'false'}) != 'true']
+        modifiers_df = modifiers_df[modifiers_df['Void?'].str.lower().replace({'nan': 'false'}) != 'true']
+
+        return items_df, modifiers_df
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        return None, None
+
 def save_report_data(date, location, report_df):
     """Save report data to database"""
     if report_df.empty:
@@ -112,118 +143,6 @@ def get_report_data(date, location):
         st.error(f"Error retrieving data: {str(e)}")
         return pd.DataFrame()
 
-def load_data(items_file, modifiers_file):
-    """Load and preprocess sales data from CSV files"""
-    try:
-        # Read CSV files
-        items_df = pd.read_csv(items_file)
-        modifiers_df = pd.read_csv(modifiers_file)
-
-        # Convert date columns to datetime
-        items_df['Order Date'] = pd.to_datetime(items_df['Order Date'])
-        modifiers_df['Order Date'] = pd.to_datetime(modifiers_df['Order Date'])
-
-        # Convert Qty to numeric, handling any non-numeric values
-        items_df['Qty'] = pd.to_numeric(items_df['Qty'].replace({'false': '0', 'true': '0'}), errors='coerce').fillna(0)
-        modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'].replace({'false': '0', 'true': '0'}), errors='coerce').fillna(0)
-
-        # Filter out void items
-        items_df = items_df[items_df['Void?'].fillna('false').str.lower() != 'true']
-        modifiers_df = modifiers_df[modifiers_df['Void?'].fillna('false').str.lower() != 'true']
-
-        return items_df, modifiers_df
-    except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
-        return None, None
-
-def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
-    """Generate report data with quantity-based counting"""
-    if items_df is None or items_df.empty:
-        return pd.DataFrame()
-
-    report_data = []
-    dates = sorted(items_df['Order Date'].dt.date.unique())
-
-    for date in dates:
-        # Filter data for current date
-        date_items = items_df[items_df['Order Date'].dt.date == date]
-
-        if modifiers_df is not None:
-            date_mods = modifiers_df[modifiers_df['Order Date'].dt.date == date]
-        else:
-            date_mods = pd.DataFrame()
-
-        # Process each service period
-        for service in ['Lunch', 'Dinner']:
-            # Define service hours
-            start_hour = 6 if service == 'Lunch' else 16
-            end_hour = 16 if service == 'Lunch' else 24
-
-            # Filter by service period
-            service_items = date_items[
-                (date_items['Order Date'].dt.hour >= start_hour) &
-                (date_items['Order Date'].dt.hour < end_hour)
-            ]
-
-            if not date_mods.empty:
-                service_mods = date_mods[
-                    (date_mods['Order Date'].dt.hour >= start_hour) &
-                    (date_mods['Order Date'].dt.hour < end_hour)
-                ]
-            else:
-                service_mods = pd.DataFrame()
-
-            # Process each time interval
-            for hour in range(start_hour, end_hour):
-                # Process intervals
-                minutes = [0] if interval_minutes == 60 else [0, 30]
-                for minute in minutes:
-                    # Filter data for current interval
-                    if interval_minutes == 30:
-                        interval_end = minute + 30
-                        mask = (
-                            (date_items['Order Date'].dt.hour == hour) &
-                            (date_items['Order Date'].dt.minute >= minute) &
-                            (date_items['Order Date'].dt.minute < interval_end)
-                        )
-                        interval_items = service_items[mask]
-
-                        if not service_mods.empty:
-                            mask = (
-                                (service_mods['Order Date'].dt.hour == hour) &
-                                (service_mods['Order Date'].dt.minute >= minute) &
-                                (service_mods['Order Date'].dt.minute < interval_end)
-                            )
-                            interval_mods = service_mods[mask]
-                        else:
-                            interval_mods = pd.DataFrame()
-                    else:
-                        interval_items = service_items[service_items['Order Date'].dt.hour == hour]
-                        interval_mods = service_mods[service_mods['Order Date'].dt.hour == hour] if not service_mods.empty else pd.DataFrame()
-
-                    # Calculate counts
-                    counts = calculate_interval_counts(interval_items, interval_mods)
-
-                    if sum(counts.values()) > 0:
-                        report_data.append({
-                            'Service': service,
-                            'Interval': f"{hour:02d}:{minute:02d}",
-                            **counts
-                        })
-
-    # Create DataFrame and format
-    if not report_data:
-        return pd.DataFrame()
-
-    report_df = pd.DataFrame(report_data)
-    report_df = report_df.sort_values(['Service', 'Interval'])
-
-    # Ensure all numeric columns are integers
-    numeric_cols = ['1/2 Chix', '1/2 Ribs', 'Full Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Grits', 'Pots', 'Total']
-    report_df[numeric_cols] = report_df[numeric_cols].fillna(0).astype(int)
-
-    return report_df
-
 def calculate_interval_counts(interval_items, interval_mods):
     """Calculate counts for a specific interval"""
     # Initialize counts
@@ -279,3 +198,89 @@ def calculate_interval_counts(interval_items, interval_mods):
     counts['Total'] = sum(counts.values())
 
     return {k: int(v) for k, v in counts.items()}
+
+def generate_report_data(items_df, modifiers_df=None, interval_minutes=60):
+    """Generate report data with quantity-based counting"""
+    if items_df is None or items_df.empty:
+        return pd.DataFrame()
+
+    report_data = []
+    dates = sorted(items_df['Order Date'].dt.date.unique())
+
+    for date in dates:
+        # Filter data for current date
+        date_items = items_df[items_df['Order Date'].dt.date == date]
+
+        if modifiers_df is not None:
+            date_mods = modifiers_df[modifiers_df['Order Date'].dt.date == date]
+        else:
+            date_mods = pd.DataFrame()
+
+        # Process each service period
+        for service in ['Lunch', 'Dinner']:
+            # Define service hours
+            start_hour = 6 if service == 'Lunch' else 16
+            end_hour = 16 if service == 'Lunch' else 24
+
+            # Filter by service period
+            service_items = date_items[
+                (date_items['Order Date'].dt.hour >= start_hour) &
+                (date_items['Order Date'].dt.hour < end_hour)
+            ]
+
+            if not date_mods.empty:
+                service_mods = date_mods[
+                    (date_mods['Order Date'].dt.hour >= start_hour) &
+                    (date_mods['Order Date'].dt.hour < end_hour)
+                ]
+            else:
+                service_mods = pd.DataFrame()
+
+            # Process each time interval
+            for hour in range(start_hour, end_hour):
+                # Process intervals
+                minutes = [0] if interval_minutes == 60 else [0, 30]
+                for minute in minutes:
+                    # Filter data for current interval
+                    if interval_minutes == 30:
+                        interval_end = minute + 30
+                        interval_items = service_items[
+                            (service_items['Order Date'].dt.hour == hour) &
+                            (service_items['Order Date'].dt.minute >= minute) &
+                            (service_items['Order Date'].dt.minute < interval_end)
+                        ]
+
+                        if not service_mods.empty:
+                            interval_mods = service_mods[
+                                (service_mods['Order Date'].dt.hour == hour) &
+                                (service_mods['Order Date'].dt.minute >= minute) &
+                                (service_mods['Order Date'].dt.minute < interval_end)
+                            ]
+                        else:
+                            interval_mods = pd.DataFrame()
+                    else:
+                        interval_items = service_items[service_items['Order Date'].dt.hour == hour]
+                        interval_mods = service_mods[service_mods['Order Date'].dt.hour == hour] if not service_mods.empty else pd.DataFrame()
+
+                    # Calculate counts
+                    counts = calculate_interval_counts(interval_items, interval_mods)
+
+                    if sum(counts.values()) > 0:
+                        report_data.append({
+                            'Service': service,
+                            'Interval': f"{hour:02d}:{minute:02d}",
+                            **counts
+                        })
+
+    # Create DataFrame and format
+    if not report_data:
+        return pd.DataFrame()
+
+    report_df = pd.DataFrame(report_data)
+    report_df = report_df.sort_values(['Service', 'Interval'])
+
+    # Ensure all numeric columns are integers
+    numeric_cols = ['1/2 Chix', '1/2 Ribs', 'Full Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Grits', 'Pots', 'Total']
+    report_df[numeric_cols] = report_df[numeric_cols].fillna(0).astype(int)
+
+    return report_df
