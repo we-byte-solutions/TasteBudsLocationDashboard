@@ -33,8 +33,46 @@ if 'locations' not in st.session_state:
 if 'selected_location' not in st.session_state:
     st.session_state.selected_location = db_locations[0] if db_locations else None
 
+# Sidebar filters section
+st.sidebar.title('Filters')
 
-# Sidebar
+# Location filter
+if st.session_state.locations:
+    selected_location = st.sidebar.selectbox(
+        'Location',
+        options=st.session_state.locations,
+        index=st.session_state.locations.index(st.session_state.selected_location) if st.session_state.selected_location else 0
+    )
+    st.session_state.selected_location = selected_location
+else:
+    st.sidebar.error("No locations available")
+    selected_location = None
+
+# Date filter - Use dates from database if no uploaded data
+dates = sorted(set(db_dates))
+if st.session_state.items_df is not None:
+    dates = sorted(set(dates + list(st.session_state.items_df['Order Date'].dt.date.unique())))
+
+if dates:
+    selected_date = st.sidebar.date_input(
+        'Date',
+        value=dates[-1],  # Default to most recent date
+        min_value=dates[0],
+        max_value=dates[-1]
+    )
+else:
+    st.sidebar.error("No dates available")
+    selected_date = None
+
+# Time interval filter
+interval = st.sidebar.radio(
+    'Time Interval',
+    options=['1 hour', '30 minutes'],
+    horizontal=True,
+    key='interval'
+)
+
+# Data upload section
 st.sidebar.title('Data Upload')
 
 # Clear data button at the top of sidebar
@@ -46,14 +84,6 @@ if st.sidebar.button('Clear Uploaded Data', type='primary', use_container_width=
 # File upload section
 items_file = st.sidebar.file_uploader("Upload Items CSV", type=['csv'])
 modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV", type=['csv'])
-
-# Time interval filter
-interval = st.sidebar.radio(
-    'Time Interval',
-    options=['1 hour', '30 minutes'],
-    horizontal=True,
-    key='interval'
-)
 
 # Load data when files are uploaded
 if items_file and modifiers_file:
@@ -103,37 +133,6 @@ if items_file and modifiers_file:
             st.sidebar.success('Files uploaded and processed successfully!')
     except Exception as e:
         st.sidebar.error(f'Error processing files: {str(e)}')
-
-# Sidebar filters
-st.sidebar.title('Filters')
-
-# Location filter
-if st.session_state.locations:
-    selected_location = st.sidebar.selectbox(
-        'Location',
-        options=st.session_state.locations,
-        index=st.session_state.locations.index(st.session_state.selected_location) if st.session_state.selected_location else 0
-    )
-    st.session_state.selected_location = selected_location
-else:
-    st.sidebar.error("No locations available")
-    selected_location = None
-
-# Date filter - Use dates from database if no uploaded data
-dates = sorted(set(db_dates))
-if st.session_state.items_df is not None:
-    dates = sorted(set(dates + list(st.session_state.items_df['Order Date'].dt.date.unique())))
-
-if dates:
-    selected_date = st.sidebar.date_input(
-        'Date',
-        value=dates[-1],  # Default to most recent date
-        min_value=dates[0],
-        max_value=dates[-1]
-    )
-else:
-    st.sidebar.error("No dates available")
-    selected_date = None
 
 # Display logo
 logo = Image.open('attached_assets/image_1740704103897.png')
