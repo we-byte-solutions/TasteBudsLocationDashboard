@@ -129,42 +129,32 @@ def save_report_data(date, location, report_df):
         st.error(f"Error saving data: {str(e)}")
         raise
 
-def get_report_data(date, location, interval_minutes=60):
+def get_report_data(date, location):
     """Retrieve report data from database"""
     try:
         with engine.connect() as conn:
             result = conn.execute(text("""
                 SELECT service as "Service",
-                       CASE WHEN :interval_minutes = 30 THEN interval_time
-                            ELSE substring(interval_time from 1 for 2) || ':00'
-                       END as "Interval",
-                       sum(half_chix) as "1/2 Chix",
-                       sum(half_ribs) as "1/2 Ribs",
-                       sum(full_ribs) as "Full Ribs",
-                       sum(six_oz_mod) as "6oz Mod",
-                       sum(eight_oz_mod) as "8oz Mod",
-                       sum(corn) as "Corn",
-                       sum(grits) as "Grits",
-                       sum(pots) as "Pots",
-                       sum(total) as "Total"
+                       interval_time as "Interval",
+                       half_chix as "1/2 Chix",
+                       half_ribs as "1/2 Ribs",
+                       full_ribs as "Full Ribs",
+                       six_oz_mod as "6oz Mod",
+                       eight_oz_mod as "8oz Mod",
+                       corn as "Corn",
+                       grits as "Grits",
+                       pots as "Pots",
+                       total as "Total"
                 FROM new_sales_data
                 WHERE order_date = :date
                 AND location = :location
-                GROUP BY service,
-                         CASE WHEN :interval_minutes = 30 THEN interval_time
-                              ELSE substring(interval_time from 1 for 2) || ':00'
-                         END
                 ORDER BY 
                     CASE service 
                         WHEN 'Lunch' THEN 1 
                         WHEN 'Dinner' THEN 2 
                     END,
-                    "Interval"
-            """), {
-                'date': date,
-                'location': location,
-                'interval_minutes': interval_minutes
-            })
+                    interval_time
+            """), {'date': date, 'location': location})
 
             df = pd.DataFrame(result.fetchall())
             if not df.empty:

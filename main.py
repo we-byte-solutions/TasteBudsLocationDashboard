@@ -21,6 +21,8 @@ if 'items_df' not in st.session_state:
     st.session_state.items_df = None
 if 'modifiers_df' not in st.session_state:
     st.session_state.modifiers_df = None
+if 'interval' not in st.session_state:
+    st.session_state.interval = '1 hour'
 
 # Load available locations and dates from database
 db_locations, db_dates = utils.get_available_locations_and_dates()
@@ -62,13 +64,12 @@ else:
     st.sidebar.error("No dates available")
     selected_date = None
 
-# Time interval filter with default value
-st.sidebar.radio(
+# Time interval filter
+interval = st.sidebar.radio(
     'Time Interval',
     options=['1 hour', '30 minutes'],
     horizontal=True,
-    key='interval',
-    index=0  # Default to '1 hour'
+    key='interval'
 )
 
 # Data upload section
@@ -152,9 +153,7 @@ st.markdown('<h3 class="report-title">Category Sales Count Report</h3>', unsafe_
 
 # Get report data for selected date and location
 if selected_date is not None and selected_location is not None:
-    # Get report data with selected interval
-    interval_minutes = 30 if st.session_state.interval == '30 minutes' else 60
-    report_df = utils.get_report_data(selected_date, selected_location, interval_minutes)
+    report_df = utils.get_report_data(selected_date, selected_location)
 else:
     report_df = pd.DataFrame()
 
