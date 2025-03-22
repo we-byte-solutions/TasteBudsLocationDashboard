@@ -8,28 +8,38 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 engine = create_engine(DATABASE_URL)
 
 def init_db():
-    """Initialize database tables"""
-    with engine.connect() as conn:
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS new_sales_data (
-                id SERIAL PRIMARY KEY,
-                location TEXT NOT NULL,
-                order_date DATE NOT NULL,
-                service TEXT NOT NULL,
-                interval_time TEXT NOT NULL,
-                half_chix INTEGER NOT NULL DEFAULT 0,
-                half_ribs INTEGER NOT NULL DEFAULT 0,
-                full_ribs INTEGER NOT NULL DEFAULT 0,
-                six_oz_mod INTEGER NOT NULL DEFAULT 0,
-                eight_oz_mod INTEGER NOT NULL DEFAULT 0,
-                corn INTEGER NOT NULL DEFAULT 0,
-                grits INTEGER NOT NULL DEFAULT 0,
-                pots INTEGER NOT NULL DEFAULT 0,
-                total INTEGER NOT NULL DEFAULT 0,
-                UNIQUE (location, order_date, service, interval_time)
-            )
-        """))
-        conn.commit()
+    """Initialize database tables with optimized indexes"""
+    try:
+        with engine.connect() as conn:
+            # Create main table with constraints
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS new_sales_data (
+                    id SERIAL PRIMARY KEY,
+                    location TEXT NOT NULL,
+                    order_date DATE NOT NULL,
+                    service TEXT NOT NULL,
+                    interval_time TEXT NOT NULL,
+                    half_chix INTEGER NOT NULL DEFAULT 0,
+                    half_ribs INTEGER NOT NULL DEFAULT 0,
+                    full_ribs INTEGER NOT NULL DEFAULT 0,
+                    six_oz_mod INTEGER NOT NULL DEFAULT 0,
+                    eight_oz_mod INTEGER NOT NULL DEFAULT 0,
+                    corn INTEGER NOT NULL DEFAULT 0,
+                    grits INTEGER NOT NULL DEFAULT 0,
+                    pots INTEGER NOT NULL DEFAULT 0,
+                    total INTEGER NOT NULL DEFAULT 0,
+                    UNIQUE (location, order_date, service, interval_time)
+                );
+
+                -- Create indexes if they don't exist
+                CREATE INDEX IF NOT EXISTS idx_date_location ON new_sales_data(order_date, location);
+                CREATE INDEX IF NOT EXISTS idx_service ON new_sales_data(service);
+                CREATE INDEX IF NOT EXISTS idx_interval ON new_sales_data(interval_time);
+            """))
+            conn.commit()
+    except Exception as e:
+        st.error(f"Database initialization error: {str(e)}")
+        raise
 
 def load_data(items_file, modifiers_file):
     """Load and preprocess sales data from CSV files"""
@@ -63,13 +73,13 @@ def load_data(items_file, modifiers_file):
         return None, None
 
 def save_report_data(date, location, report_df):
-    """Save report data to database"""
+    """Save report data to database with improved error handling"""
     if report_df.empty:
         return
 
     try:
-        # Delete existing data for this date and location
-        with engine.connect() as conn:
+        with engine.begin() as conn:  # Using transaction
+            # Delete existing data for this date and location
             conn.execute(text("""
                 DELETE FROM new_sales_data 
                 WHERE order_date = :date AND location = :location
@@ -89,6 +99,17 @@ def save_report_data(date, location, report_df):
                     (:location, :order_date, :service, :interval_time,
                     :half_chix, :half_ribs, :full_ribs, :six_oz_mod, :eight_oz_mod,
                     :corn, :grits, :pots, :total)
+                    ON CONFLICT (location, order_date, service, interval_time)
+                    DO UPDATE SET
+                        half_chix = EXCLUDED.half_chix,
+                        half_ribs = EXCLUDED.half_ribs,
+                        full_ribs = EXCLUDED.full_ribs,
+                        six_oz_mod = EXCLUDED.six_oz_mod,
+                        eight_oz_mod = EXCLUDED.eight_oz_mod,
+                        corn = EXCLUDED.corn,
+                        grits = EXCLUDED.grits,
+                        pots = EXCLUDED.pots,
+                        total = EXCLUDED.total
                 """), {
                     'location': location,
                     'order_date': date,
@@ -104,9 +125,9 @@ def save_report_data(date, location, report_df):
                     'pots': row['Pots'],
                     'total': row['Total']
                 })
-            conn.commit()
     except Exception as e:
         st.error(f"Error saving data: {str(e)}")
+        raise
 
 def get_report_data(date, location):
     """Retrieve report data from database"""
