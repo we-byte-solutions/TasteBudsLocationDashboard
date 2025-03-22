@@ -31,6 +31,14 @@ if 'selected_location' not in st.session_state:
 # Sidebar
 st.sidebar.title('Data Upload')
 
+# Clear data button at the top of sidebar
+if st.sidebar.button('Clear Uploaded Data', type='primary', use_container_width=True):
+    st.session_state.items_df = None
+    st.session_state.modifiers_df = None
+    st.session_state.locations = []
+    st.session_state.selected_location = None
+    st.rerun()
+
 # File upload section
 items_file = st.sidebar.file_uploader("Upload Items CSV", type=['csv'])
 modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV", type=['csv'])
@@ -197,11 +205,3 @@ st.dataframe(
         'Total': st.column_config.NumberColumn('Total', format='%d', width='small')
     }
 )
-
-# Clear data button
-if st.sidebar.button('Clear Uploaded Data'):
-    st.session_state.items_df = None
-    st.session_state.modifiers_df = None
-    st.session_state.locations = []
-    st.session_state.selected_location = None
-    st.rerun()
