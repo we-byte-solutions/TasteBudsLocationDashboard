@@ -13,19 +13,20 @@ def init_db():
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS sales_data (
                 id SERIAL PRIMARY KEY,
-                location TEXT,
-                order_date DATE,
-                service TEXT,
-                interval_time TEXT,
-                half_chix INTEGER,
-                half_ribs INTEGER,
-                full_ribs INTEGER,
-                six_oz_mod INTEGER,
-                eight_oz_mod INTEGER,
-                corn INTEGER,
-                grits INTEGER,
-                pots INTEGER,
-                total INTEGER
+                location TEXT NOT NULL,
+                order_date DATE NOT NULL,
+                service TEXT NOT NULL,
+                interval_time TEXT NOT NULL,
+                half_chix INTEGER NOT NULL DEFAULT 0,
+                half_ribs INTEGER NOT NULL DEFAULT 0,
+                full_ribs INTEGER NOT NULL DEFAULT 0,
+                six_oz_mod INTEGER NOT NULL DEFAULT 0,
+                eight_oz_mod INTEGER NOT NULL DEFAULT 0,
+                corn INTEGER NOT NULL DEFAULT 0,
+                grits INTEGER NOT NULL DEFAULT 0,
+                pots INTEGER NOT NULL DEFAULT 0,
+                total INTEGER NOT NULL DEFAULT 0,
+                UNIQUE (location, order_date, service, interval_time)
             )
         """))
         conn.commit()
@@ -47,17 +48,6 @@ def save_report_data(date, location, report_df):
                 (:location, :order_date, :service, :interval_time,
                 :half_chix, :half_ribs, :full_ribs, :six_oz_mod, :eight_oz_mod,
                 :corn, :grits, :pots, :total)
-                ON CONFLICT (location, order_date, service, interval_time)
-                DO UPDATE SET
-                half_chix = EXCLUDED.half_chix,
-                half_ribs = EXCLUDED.half_ribs,
-                full_ribs = EXCLUDED.full_ribs,
-                six_oz_mod = EXCLUDED.six_oz_mod,
-                eight_oz_mod = EXCLUDED.eight_oz_mod,
-                corn = EXCLUDED.corn,
-                grits = EXCLUDED.grits,
-                pots = EXCLUDED.pots,
-                total = EXCLUDED.total
             """), {
                 'location': location,
                 'order_date': date,
