@@ -2,19 +2,30 @@ import streamlit as st
 import pandas as pd
 import utils
 from PIL import Image
+import sys
+import traceback
 
-# Initialize database
-utils.init_db()
-
-# Page config
+# Configure Streamlit page
 st.set_page_config(
     page_title="Sales Count Report",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Load custom CSS
-with open('styles.css') as f:
-    st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+# Initialize session state
+if 'initialization_completed' not in st.session_state:
+    st.session_state.initialization_completed = False
+
+# Initialize database connection on startup
+if not st.session_state.initialization_completed:
+    try:
+        utils.init_db()
+        st.session_state.initialization_completed = True
+    except Exception as e:
+        st.error("Failed to initialize database. Please try again later.")
+        st.error(f"Error: {str(e)}")
+        traceback.print_exc()
+        sys.exit(1)
 
 # Initialize session state for data
 if 'items_df' not in st.session_state:
@@ -23,7 +34,11 @@ if 'modifiers_df' not in st.session_state:
     st.session_state.modifiers_df = None
 
 # Load available locations and dates from database
-db_locations, db_dates = utils.get_available_locations_and_dates()
+try:
+    db_locations, db_dates = utils.get_available_locations_and_dates()
+except Exception as e:
+    st.error(f"Error loading locations and dates: {str(e)}")
+    db_locations, db_dates = [], []
 
 # Initialize locations and selected_location if not in session state
 if 'locations' not in st.session_state:
@@ -61,7 +76,6 @@ if dates:
 else:
     st.sidebar.error("No dates available")
     selected_date = None
-
 
 # Data upload section
 st.sidebar.title('Data Upload')
@@ -125,8 +139,11 @@ if items_file and modifiers_file:
         st.sidebar.error(f'Error processing files: {str(e)}')
 
 # Display logo
-logo = Image.open('attached_assets/image_1740704103897.png')
-st.image(logo, width=150)
+try:
+    logo = Image.open('attached_assets/image_1740704103897.png')
+    st.image(logo, width=150)
+except Exception as e:
+    st.error(f"Error loading logo: {str(e)}")
 
 # Display report header
 if selected_location:
@@ -143,7 +160,11 @@ st.markdown('<h3 class="report-title">Category Sales Count Report</h3>', unsafe_
 
 # Get report data for selected date and location
 if selected_date is not None and selected_location is not None:
-    report_df = utils.get_report_data(selected_date, selected_location)
+    try:
+        report_df = utils.get_report_data(selected_date, selected_location)
+    except Exception as e:
+        st.error(f"Error retrieving report data: {str(e)}")
+        report_df = pd.DataFrame()
 else:
     report_df = pd.DataFrame()
 

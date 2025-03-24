@@ -2,15 +2,45 @@ import pandas as pd
 import streamlit as st
 import os
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.pool import QueuePool
+import time
 
-# Database connection
+# Database connection with connection pooling
 DATABASE_URL = os.environ.get('DATABASE_URL')
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    poolclass=QueuePool,
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+    pool_recycle=1800,  # Recycle connections every 30 minutes
+    pool_pre_ping=True  # Enable connection testing before use
+)
+
+def get_db_connection():
+    """Get database connection with retry logic"""
+    max_retries = 3
+    retry_delay = 1  # seconds
+
+    for attempt in range(max_retries):
+        try:
+            conn = engine.connect()
+            # Test the connection
+            conn.execute(text("SELECT 1"))
+            return conn
+        except SQLAlchemyError as e:
+            if attempt == max_retries - 1:
+                st.error(f"Failed to connect to database after {max_retries} attempts: {str(e)}")
+                raise
+            time.sleep(retry_delay)
+            retry_delay *= 2  # Exponential backoff
 
 def init_db():
     """Initialize database tables with optimized indexes"""
     try:
-        with engine.connect() as conn:
+        # Use a transaction to ensure atomic operation
+        with engine.begin() as conn:
             # Create main table with constraints
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS new_sales_data (
@@ -36,41 +66,9 @@ def init_db():
                 CREATE INDEX IF NOT EXISTS idx_service ON new_sales_data(service);
                 CREATE INDEX IF NOT EXISTS idx_interval ON new_sales_data(interval_time);
             """))
-            conn.commit()
-    except Exception as e:
+    except SQLAlchemyError as e:
         st.error(f"Database initialization error: {str(e)}")
         raise
-
-def load_data(items_file, modifiers_file):
-    """Load and preprocess sales data from CSV files"""
-    try:
-        # Read CSV files
-        items_df = pd.read_csv(items_file)
-        modifiers_df = pd.read_csv(modifiers_file)
-
-        # Ensure string columns are properly handled
-        string_columns = ['Menu Item', 'Modifier', 'Parent Menu Selection', 'Location', 'Void?']
-        for df in [items_df, modifiers_df]:
-            for col in string_columns:
-                if col in df.columns:
-                    df[col] = df[col].astype(str)
-
-        # Convert date columns to datetime
-        items_df['Order Date'] = pd.to_datetime(items_df['Order Date'])
-        modifiers_df['Order Date'] = pd.to_datetime(modifiers_df['Order Date'])
-
-        # Convert Qty to numeric, handling any non-numeric values
-        items_df['Qty'] = pd.to_numeric(items_df['Qty'].replace({'false': '0', 'true': '0'}), errors='coerce').fillna(0)
-        modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'].replace({'false': '0', 'true': '0'}), errors='coerce').fillna(0)
-
-        # Filter out void items (convert to lowercase for comparison)
-        items_df = items_df[items_df['Void?'].str.lower().replace({'nan': 'false'}) != 'true']
-        modifiers_df = modifiers_df[modifiers_df['Void?'].str.lower().replace({'nan': 'false'}) != 'true']
-
-        return items_df, modifiers_df
-    except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
-        return None, None
 
 def save_report_data(date, location, report_df):
     """Save report data to database with improved error handling"""
@@ -125,7 +123,7 @@ def save_report_data(date, location, report_df):
                     'pots': row['Pots'],
                     'total': row['Total']
                 })
-    except Exception as e:
+    except SQLAlchemyError as e:
         st.error(f"Error saving data: {str(e)}")
         raise
 
@@ -160,9 +158,59 @@ def get_report_data(date, location):
             if not df.empty:
                 df = df.sort_values(['Service', 'Interval'])
             return df
-    except Exception as e:
+    except SQLAlchemyError as e:
         st.error(f"Error retrieving data: {str(e)}")
         return pd.DataFrame()
+
+def get_available_locations_and_dates():
+    """Retrieve available locations and dates from database"""
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT DISTINCT location, order_date
+                FROM new_sales_data
+                ORDER BY location, order_date DESC
+            """))
+
+            data = result.fetchall()
+            locations = sorted(set(row[0] for row in data))
+            dates = sorted(set(row[1] for row in data))
+
+            return locations, dates
+    except SQLAlchemyError as e:
+        st.error(f"Error retrieving locations and dates: {str(e)}")
+        return [], []
+
+def load_data(items_file, modifiers_file):
+    """Load and preprocess sales data from CSV files"""
+    try:
+        # Read CSV files
+        items_df = pd.read_csv(items_file)
+        modifiers_df = pd.read_csv(modifiers_file)
+
+        # Ensure string columns are properly handled
+        string_columns = ['Menu Item', 'Modifier', 'Parent Menu Selection', 'Location', 'Void?']
+        for df in [items_df, modifiers_df]:
+            for col in string_columns:
+                if col in df.columns:
+                    df[col] = df[col].astype(str)
+
+        # Convert date columns to datetime
+        items_df['Order Date'] = pd.to_datetime(items_df['Order Date'])
+        modifiers_df['Order Date'] = pd.to_datetime(modifiers_df['Order Date'])
+
+        # Convert Qty to numeric, handling any non-numeric values
+        items_df['Qty'] = pd.to_numeric(items_df['Qty'].replace({'false': '0', 'true': '0'}), errors='coerce').fillna(0)
+        modifiers_df['Qty'] = pd.to_numeric(modifiers_df['Qty'].replace({'false': '0', 'true': '0'}), errors='coerce').fillna(0)
+
+        # Filter out void items (convert to lowercase for comparison)
+        items_df = items_df[items_df['Void?'].str.lower().replace({'nan': 'false'}) != 'true']
+        modifiers_df = modifiers_df[modifiers_df['Void?'].str.lower().replace({'nan': 'false'}) != 'true']
+
+        return items_df, modifiers_df
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        return None, None
 
 def calculate_interval_counts(interval_items, interval_mods):
     """Calculate counts for a specific interval"""
@@ -285,22 +333,3 @@ def generate_report_data(items_df, modifiers_df=None):
     report_df[numeric_cols] = report_df[numeric_cols].fillna(0).astype(int)
 
     return report_df
-
-def get_available_locations_and_dates():
-    """Retrieve available locations and dates from database"""
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(text("""
-                SELECT DISTINCT location, order_date
-                FROM new_sales_data
-                ORDER BY location, order_date DESC
-            """))
-
-            data = result.fetchall()
-            locations = sorted(set(row[0] for row in data))
-            dates = sorted(set(row[1] for row in data))
-
-            return locations, dates
-    except Exception as e:
-        st.error(f"Error retrieving locations and dates: {str(e)}")
-        return [], []
