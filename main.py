@@ -235,6 +235,18 @@ if not report_df.empty:
         pd.DataFrame([grand_total])
     ]).fillna('')
 
+# Add a sort order column to maintain totals at the bottom when sorting
+if not report_df.empty:
+    # Create a sort helper column (hidden)
+    report_df['_sort_order'] = 0  # Default value for regular rows
+    
+    # Mark service totals and grand total with higher values to ensure they stay at the bottom
+    report_df.loc[report_df['Service'].str.contains('Total', case=False, na=False), '_sort_order'] = 1  # Service totals
+    report_df.loc[report_df['Service'] == 'Grand Total', '_sort_order'] = 2  # Grand total
+    
+    # Sort by sort_order first, then by service and interval
+    report_df = report_df.sort_values(['_sort_order', 'Service', 'Interval'])
+
 # Display the report
 st.dataframe(
     report_df,
@@ -242,6 +254,10 @@ st.dataframe(
     use_container_width=True,
     height=600,
     column_config={
+        '_sort_order': st.column_config.Column(
+            'Sort Order',
+            display=False  # Hide this column
+        ),
         'Service': st.column_config.TextColumn('Service', width='small'),
         'Interval': st.column_config.TextColumn('Time', width='small'),
         '1/2 Chix': st.column_config.NumberColumn('1/2 Chix', format='%d', width='small'),
