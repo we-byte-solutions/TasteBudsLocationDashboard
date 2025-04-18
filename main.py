@@ -297,24 +297,52 @@ if not report_df.empty:
         table_html += f"<th>{header_name}</th>"
     table_html += "</tr>"
     
-    # Table rows
-    for _, row in report_df.iterrows():
-        # Determine row class for styling
-        row_class = ""
-        if 'Total' in str(row['Service']) and row['Service'] != 'Grand Total':
-            row_class = "total-row"
-        elif row['Service'] == 'Grand Total':
-            row_class = "grand-total-row"
+    # Process data by service period to maintain order within each service
+    for service in ['Lunch', 'Dinner']:
+        # Get regular rows for this service (excluding totals)
+        service_rows = report_df[(report_df['Service'] == service) & 
+                                (~report_df['Service'].str.contains('Total', case=False, na=False))]
         
-        # Add row
-        table_html += f"<tr class='{row_class}'>"
-        for col in display_columns:
-            # Format numeric values
-            if col in ['1/2 Chix', '1/2 Ribs', 'Full Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Grits', 'Pots', 'Total']:
-                table_html += f"<td>{int(row[col]) if row[col] != '' else ''}</td>"
-            else:
-                table_html += f"<td>{row[col]}</td>"
-        table_html += "</tr>"
+        # Sort by time within the service period
+        service_rows = service_rows.sort_values('Interval')
+        
+        # Display regular time interval rows
+        for _, row in service_rows.iterrows():
+            # Add row
+            table_html += f"<tr class=''>"
+            for col in display_columns:
+                # Format numeric values
+                if col in ['1/2 Chix', '1/2 Ribs', 'Full Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Grits', 'Pots', 'Total']:
+                    table_html += f"<td>{int(row[col]) if row[col] != '' else ''}</td>"
+                else:
+                    table_html += f"<td>{row[col]}</td>"
+            table_html += "</tr>"
+        
+        # Add service total row
+        service_total_row = report_df[report_df['Service'] == f'{service} Total']
+        if not service_total_row.empty:
+            for _, row in service_total_row.iterrows():
+                table_html += f"<tr class='total-row'>"
+                for col in display_columns:
+                    # Format numeric values
+                    if col in ['1/2 Chix', '1/2 Ribs', 'Full Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Grits', 'Pots', 'Total']:
+                        table_html += f"<td>{int(row[col]) if row[col] != '' else ''}</td>"
+                    else:
+                        table_html += f"<td>{row[col]}</td>"
+                table_html += "</tr>"
+    
+    # Add grand total row at the very end
+    grand_total_row = report_df[report_df['Service'] == 'Grand Total']
+    if not grand_total_row.empty:
+        for _, row in grand_total_row.iterrows():
+            table_html += f"<tr class='grand-total-row'>"
+            for col in display_columns:
+                # Format numeric values
+                if col in ['1/2 Chix', '1/2 Ribs', 'Full Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Grits', 'Pots', 'Total']:
+                    table_html += f"<td>{int(row[col]) if row[col] != '' else ''}</td>"
+                else:
+                    table_html += f"<td>{row[col]}</td>"
+            table_html += "</tr>"
     
     # End table
     table_html += "</table>"
