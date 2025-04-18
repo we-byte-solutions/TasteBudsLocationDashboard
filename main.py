@@ -250,23 +250,76 @@ if not report_df.empty:
 # Filter columns to exclude the sort order helper column
 display_columns = [col for col in report_df.columns if col != '_sort_order'] if not report_df.empty else []
 
-# Display the report
-st.dataframe(
-    report_df[display_columns],  # Only display visible columns
-    hide_index=True,
-    use_container_width=True,
-    height=600,
-    column_config={
-        'Service': st.column_config.TextColumn('Service', width='small'),
-        'Interval': st.column_config.TextColumn('Time', width='small'),
-        '1/2 Chix': st.column_config.NumberColumn('1/2 Chix', format='%d', width='small'),
-        '1/2 Ribs': st.column_config.NumberColumn('1/2 Ribs', format='%d', width='small'),
-        'Full Ribs': st.column_config.NumberColumn('Full Ribs', format='%d', width='small'),
-        '6oz Mod': st.column_config.NumberColumn('6oz Mod', format='%d', width='small'),
-        '8oz Mod': st.column_config.NumberColumn('8oz Mod', format='%d', width='small'),
-        'Corn': st.column_config.NumberColumn('Corn', format='%d', width='small'),
-        'Grits': st.column_config.NumberColumn('Grits', format='%d', width='small'),
-        'Pots': st.column_config.NumberColumn('Pots', format='%d', width='small'),
-        'Total': st.column_config.NumberColumn('Total', format='%d', width='small')
+# Since Streamlit doesn't support disabling sorting, we'll use a static table instead of dataframe
+# Define the custom CSS to style the table
+st.markdown("""
+<style>
+    .report-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: center;
     }
-)
+    .report-table th {
+        background-color: #f0f2f6;
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: center;
+        font-weight: bold;
+    }
+    .report-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: center;
+    }
+    .report-table tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+    .total-row {
+        font-weight: bold;
+        background-color: #e6e6e6 !important;
+    }
+    .grand-total-row {
+        font-weight: bold;
+        background-color: #d9d9d9 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Generate HTML for the table if there's data
+if not report_df.empty:
+    # Start table
+    table_html = "<table class='report-table'>"
+    
+    # Table header
+    table_html += "<tr>"
+    for col in display_columns:
+        header_name = 'Time' if col == 'Interval' else col
+        table_html += f"<th>{header_name}</th>"
+    table_html += "</tr>"
+    
+    # Table rows
+    for _, row in report_df.iterrows():
+        # Determine row class for styling
+        row_class = ""
+        if 'Total' in str(row['Service']) and row['Service'] != 'Grand Total':
+            row_class = "total-row"
+        elif row['Service'] == 'Grand Total':
+            row_class = "grand-total-row"
+        
+        # Add row
+        table_html += f"<tr class='{row_class}'>"
+        for col in display_columns:
+            # Format numeric values
+            if col in ['1/2 Chix', '1/2 Ribs', 'Full Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Grits', 'Pots', 'Total']:
+                table_html += f"<td>{int(row[col]) if row[col] != '' else ''}</td>"
+            else:
+                table_html += f"<td>{row[col]}</td>"
+        table_html += "</tr>"
+    
+    # End table
+    table_html += "</table>"
+    
+    # Display the HTML table
+    st.markdown(table_html, unsafe_allow_html=True)
+else:
+    st.info("No data available for the selected date and location.")
