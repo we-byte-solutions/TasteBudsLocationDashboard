@@ -49,11 +49,45 @@ if 'selected_location' not in st.session_state:
 # Data upload section
 st.sidebar.title('Data Upload')
 
-# Clear data button at the top of sidebar
-if st.sidebar.button('Clear Uploaded Data', type='primary', use_container_width=True):
+# Action buttons at the top of sidebar
+col1, col2 = st.sidebar.columns(2)
+if col1.button('Clear Uploaded Data', type='primary', use_container_width=True):
     st.session_state.items_df = None
     st.session_state.modifiers_df = None
     st.rerun()
+
+if col2.button('Recalculate Data', type='secondary', use_container_width=True):
+    if st.session_state.items_df is not None and st.session_state.modifiers_df is not None:
+        # Show recalculation status
+        recalc_status = st.sidebar.status("Recalculating historical data...")
+        
+        # Get all available dates for recalculation
+        dates = sorted(set(st.session_state.items_df['Order Date'].dt.date))
+        locations = sorted(st.session_state.items_df['Location'].unique())
+        
+        # Recalculate for each date and location
+        for date in dates:
+            recalc_status.update(label=f"Recalculating data for {date}")
+            for location in locations:
+                # Filter data for date and location
+                date_items = st.session_state.items_df[
+                    (st.session_state.items_df['Order Date'].dt.date == date) &
+                    (st.session_state.items_df['Location'] == location)
+                ]
+                date_mods = st.session_state.modifiers_df[
+                    (st.session_state.modifiers_df['Order Date'].dt.date == date) &
+                    (st.session_state.modifiers_df['Location'] == location)
+                ]
+                
+                # Generate and save report data with updated PLU calculations
+                report_df = utils.generate_report_data(date_items, date_mods, interval_type='1 Hour')
+                if not report_df.empty:
+                    utils.save_report_data(date, location, report_df)
+        
+        # Complete recalculation
+        recalc_status.update(label="Recalculation complete!", state="complete")
+    else:
+        st.sidebar.warning("No data available to recalculate. Please upload data files first.")
 
 # File upload section
 items_file = st.sidebar.file_uploader("Upload Items CSV", type=['csv'])

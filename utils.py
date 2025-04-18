@@ -270,6 +270,25 @@ def load_data(items_file, modifiers_file):
         # Filter out void items (convert to lowercase for comparison)
         items_df = items_df[items_df['Void?'].str.lower().replace({'nan': 'false'}) != 'true']
         modifiers_df = modifiers_df[modifiers_df['Void?'].str.lower().replace({'nan': 'false'}) != 'true']
+        
+        # Handle PLU column for items (Different CSVs might have different column names)
+        if 'PLU' in items_df.columns:
+            # PLU column exists, convert to numeric for comparison
+            items_df['PLU'] = pd.to_numeric(items_df['PLU'], errors='coerce')
+        else:
+            # Try to find an alternative column based on spreadsheet mappings
+            # Checking both 'Column P in Items CSV' and 'Master Id' as possible sources
+            if 'Master Id' in items_df.columns:
+                items_df['PLU'] = pd.to_numeric(items_df['Master Id'], errors='coerce')
+            
+        # Handle PLU column for modifiers
+        if 'PLU' in modifiers_df.columns:
+            # PLU column exists, convert to numeric for comparison
+            modifiers_df['PLU'] = pd.to_numeric(modifiers_df['PLU'], errors='coerce')
+        else:
+            # Try to find an alternative column based on spreadsheet mappings
+            if 'Master Id' in modifiers_df.columns:
+                modifiers_df['PLU'] = pd.to_numeric(modifiers_df['Master Id'], errors='coerce')
 
         return items_df, modifiers_df
     except Exception as e:
@@ -277,7 +296,7 @@ def load_data(items_file, modifiers_file):
         return None, None
 
 def calculate_interval_counts(interval_items, interval_mods):
-    """Calculate counts for a specific interval"""
+    """Calculate counts for a specific interval based on PLU mappings"""
     # Initialize counts
     counts = {
         '1/2 Chix': 0, '1/2 Ribs': 0, 'Full Ribs': 0,
@@ -285,47 +304,61 @@ def calculate_interval_counts(interval_items, interval_mods):
         'Corn': 0, 'Grits': 0, 'Pots': 0
     }
 
-    if not interval_mods.empty:
-        # Count chicken orders
-        chicken_mods = interval_mods[
-            (interval_mods['Modifier'].str.contains('White Meat|Dark Meat', regex=True, case=False)) &
-            (interval_mods['Parent Menu Selection'].str.contains('Rotisserie Chicken', case=False))
-        ]
-        counts['1/2 Chix'] = chicken_mods.groupby('Order Id')['Qty'].sum().sum()
+    # Define PLU mappings for each category based on the updated spreadsheets
+    plu_mapping = {
+        '1/2 Chix': [81831, 81990, 81991, 3074, 3001, 3009, 81828],
+        '1/2 Ribs': [82151, 82149, 82147, 3033, 3034, 3032, 81912, 3009],
+        'Full Ribs': [2273, 2276, 2280, 81831, 81830],
+        '6oz Mod': [3316, 3418],
+        '8oz Mod': [81829, 2114],
+        'Corn': [2307, 3082, 3648, 2303],
+        'Grits': [2308, 3086, 3618, 2306],
+        'Pots': [2310, 3081, 3622, 2309]
+    }
 
-        # Count sides
-        sides_mapping = {
-            r'\*(?:Thai )?Green Beans': 'Corn',
-            r'\*Roasted Corn Grits': 'Grits',
-            r'\*Zea Potatoes': 'Pots'
-        }
-
-        for pattern, key in sides_mapping.items():
-            side_counts = interval_mods[
-                interval_mods['Modifier'].str.contains(pattern, regex=True, case=False)
-            ].groupby(['Order Id', 'Item Selection Id'])['Qty'].sum().sum()
-            counts[key] = side_counts
-
-        # Count portion modifications
-        portion_mods = interval_mods[interval_mods['Modifier'].str.contains('6oz|8oz', regex=True, case=False)]
-        counts['6oz Mod'] = portion_mods[
-            portion_mods['Modifier'].str.contains('6oz', case=False)
-        ].groupby(['Order Id', 'Item Selection Id'])['Qty'].sum().sum()
-
-        counts['8oz Mod'] = portion_mods[
-            portion_mods['Modifier'].str.contains('8oz', case=False)
-        ].groupby(['Order Id', 'Item Selection Id'])['Qty'].sum().sum()
-
-    # Count ribs
+    # Process items data
     if not interval_items.empty:
-        ribs_items = interval_items[interval_items['Menu Item'].str.contains(r'\(4\)|\(8\)', regex=True, case=False)]
-        counts['1/2 Ribs'] = ribs_items[
-            ribs_items['Menu Item'].str.contains(r'\(4\)', regex=True, case=False)
-        ].groupby('Order Id')['Qty'].sum().sum()
+        # Ensure 'PLU' column is numeric or use string comparison if needed
+        if 'PLU' in interval_items.columns:
+            # Try to convert to numeric for safer comparison
+            try:
+                interval_items['PLU'] = pd.to_numeric(interval_items['PLU'], errors='coerce')
+                
+                # Count each category based on PLU
+                for category, plus in plu_mapping.items():
+                    category_counts = interval_items[
+                        interval_items['PLU'].isin(plus)
+                    ]['Qty'].sum()
+                    counts[category] += category_counts
+            except:
+                # If numeric conversion fails, use string comparison
+                for category, plus in plu_mapping.items():
+                    category_counts = interval_items[
+                        interval_items['PLU'].astype(str).isin([str(plu) for plu in plus])
+                    ]['Qty'].sum()
+                    counts[category] += category_counts
 
-        counts['Full Ribs'] = ribs_items[
-            ribs_items['Menu Item'].str.contains(r'\(8\)', regex=True, case=False)
-        ].groupby('Order Id')['Qty'].sum().sum()
+    # Process modifiers data
+    if not interval_mods.empty:
+        # Ensure 'PLU' column is numeric or use string comparison if needed
+        if 'PLU' in interval_mods.columns:
+            # Try to convert to numeric for safer comparison
+            try:
+                interval_mods['PLU'] = pd.to_numeric(interval_mods['PLU'], errors='coerce')
+                
+                # Count each category based on PLU
+                for category, plus in plu_mapping.items():
+                    category_counts = interval_mods[
+                        interval_mods['PLU'].isin(plus)
+                    ]['Qty'].sum()
+                    counts[category] += category_counts
+            except:
+                # If numeric conversion fails, use string comparison
+                for category, plus in plu_mapping.items():
+                    category_counts = interval_mods[
+                        interval_mods['PLU'].astype(str).isin([str(plu) for plu in plus])
+                    ]['Qty'].sum()
+                    counts[category] += category_counts
 
     # Calculate total
     counts['Total'] = sum(counts.values())
