@@ -165,29 +165,45 @@ st.markdown('<h3 class="report-title">Category Sales Count Report</h3>', unsafe_
 # Get report data for selected date and location
 if selected_date is not None and selected_location is not None:
     try:
-        # Get base report data from database (always stored in 1-hour format)
-        report_df = utils.get_report_data(selected_date, selected_location)
+        # Debug interval selection
+        st.sidebar.write(f"Debug: Selected interval: {selected_interval}")
         
-        # If user selected 30-minute intervals and we have the original data in session state,
-        # regenerate the report with 30-minute intervals
-        if selected_interval == '30 Minutes' and st.session_state.items_df is not None and st.session_state.modifiers_df is not None:
-            # Filter data for the selected date and location
-            filtered_items = st.session_state.items_df[
-                (st.session_state.items_df['Order Date'].dt.date == selected_date) & 
-                (st.session_state.items_df['Location'] == selected_location)
-            ]
-            filtered_mods = st.session_state.modifiers_df[
-                (st.session_state.modifiers_df['Order Date'].dt.date == selected_date) & 
-                (st.session_state.modifiers_df['Location'] == selected_location)
-            ]
+        # Get base report data from database (always stored in 1-hour format)
+        base_report_df = utils.get_report_data(selected_date, selected_location)
+        st.sidebar.write(f"Debug: Got base report with {len(base_report_df)} rows")
+        
+        # Set default report
+        report_df = base_report_df
+        
+        # If user selected 30-minute intervals, regenerate the report
+        if selected_interval == '30 Minutes':
+            st.sidebar.write("Debug: 30-minute intervals selected")
             
-            # Only regenerate if we have the data for this date and location
-            if not filtered_items.empty:
-                report_df = utils.generate_report_data(
-                    filtered_items, 
-                    filtered_mods, 
-                    interval_type=selected_interval
-                )
+            # Use current data in session state if available
+            if st.session_state.items_df is not None and st.session_state.modifiers_df is not None:
+                # Filter data for the selected date and location
+                filtered_items = st.session_state.items_df[
+                    (st.session_state.items_df['Order Date'].dt.date == selected_date) & 
+                    (st.session_state.items_df['Location'] == selected_location)
+                ]
+                filtered_mods = st.session_state.modifiers_df[
+                    (st.session_state.modifiers_df['Order Date'].dt.date == selected_date) & 
+                    (st.session_state.modifiers_df['Location'] == selected_location)
+                ]
+                
+                # Only regenerate if we have the data for this date and location
+                if not filtered_items.empty:
+                    st.sidebar.write(f"Debug: Regenerating with {len(filtered_items)} items rows")
+                    report_df = utils.generate_report_data(
+                        filtered_items, 
+                        filtered_mods, 
+                        interval_type=selected_interval
+                    )
+                    st.sidebar.write(f"Debug: Generated report with {len(report_df)} rows")
+                else:
+                    st.sidebar.write("Debug: No data for selected date/location in session")
+            else:
+                st.sidebar.write("Debug: No data in session state")
     except Exception as e:
         st.error(f"Error retrieving report data: {str(e)}")
         report_df = pd.DataFrame()
