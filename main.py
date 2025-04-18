@@ -247,17 +247,16 @@ if not report_df.empty:
     # Sort by sort_order first, then by service and interval
     report_df = report_df.sort_values(['_sort_order', 'Service', 'Interval'])
 
+# Filter columns to exclude the sort order helper column
+display_columns = [col for col in report_df.columns if col != '_sort_order'] if not report_df.empty else []
+
 # Display the report
 st.dataframe(
-    report_df,
+    report_df[display_columns],  # Only display visible columns
     hide_index=True,
     use_container_width=True,
     height=600,
     column_config={
-        '_sort_order': st.column_config.Column(
-            'Sort Order',
-            display=False  # Hide this column
-        ),
         'Service': st.column_config.TextColumn('Service', width='small'),
         'Interval': st.column_config.TextColumn('Time', width='small'),
         '1/2 Chix': st.column_config.NumberColumn('1/2 Chix', format='%d', width='small'),
