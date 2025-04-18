@@ -127,8 +127,8 @@ def save_report_data(date, location, report_df):
         st.error(f"Error saving data: {str(e)}")
         raise
 
-def get_report_data(date, location):
-    """Retrieve report data from database"""
+def get_report_data(date, location, interval_type='1 Hour'):
+    """Retrieve report data from database with optional interval type conversion"""
     try:
         with engine.connect() as conn:
             result = conn.execute(text("""
@@ -157,10 +157,74 @@ def get_report_data(date, location):
             df = pd.DataFrame(result.fetchall())
             if not df.empty:
                 df = df.sort_values(['Service', 'Interval'])
+                
+                # If 30-minute intervals are requested, convert the 1-hour data
+                if interval_type == '30 Minutes' and not df.empty:
+                    df = convert_to_30min_intervals(df)
+            
             return df
     except SQLAlchemyError as e:
         st.error(f"Error retrieving data: {str(e)}")
         return pd.DataFrame()
+
+def convert_to_30min_intervals(hourly_df):
+    """Convert 1-hour interval data to 30-minute intervals by splitting each hour's data"""
+    if hourly_df.empty:
+        return hourly_df
+    
+    result_rows = []
+    
+    # Process each row in the hourly data
+    for _, row in hourly_df.iterrows():
+        service = row['Service']
+        hour_str = row['Interval']
+        
+        # Skip totals or any non-hour format rows
+        if not ':' in str(hour_str) or 'Total' in str(service):
+            result_rows.append(row.to_dict())
+            continue
+            
+        # Parse the hour
+        try:
+            hour = int(hour_str.split(':')[0])
+            
+            # Create two 30-minute intervals for this hour
+            # First half of the hour (XX:00)
+            first_half = row.copy()
+            first_half['Interval'] = f"{hour:02d}:00"
+            
+            # Distribute values (approximately half to each interval)
+            numeric_cols = ['1/2 Chix', '1/2 Ribs', 'Full Ribs', '6oz Mod', '8oz Mod', 
+                           'Corn', 'Grits', 'Pots', 'Total']
+            
+            for col in numeric_cols:
+                # Split the count evenly between the two 30-minute intervals
+                # (slightly favoring the first half for odd numbers)
+                first_half[col] = int(row[col] / 2 + 0.5)
+                
+            # Second half of the hour (XX:30)
+            second_half = row.copy()
+            second_half['Interval'] = f"{hour:02d}:30"
+            
+            for col in numeric_cols:
+                # The second half gets the remainder
+                second_half[col] = row[col] - first_half[col]
+                
+            # Add both intervals to the results
+            result_rows.append(first_half.to_dict())
+            result_rows.append(second_half.to_dict())
+            
+        except (ValueError, IndexError):
+            # If there's any error parsing the interval, just keep the original row
+            result_rows.append(row.to_dict())
+    
+    # Convert back to DataFrame and sort
+    result_df = pd.DataFrame(result_rows)
+    
+    if not result_df.empty:
+        result_df = result_df.sort_values(['Service', 'Interval'])
+    
+    return result_df
 
 def get_available_locations_and_dates():
     """Retrieve available locations and dates from database"""
