@@ -268,14 +268,17 @@ def calculate_interval_counts(interval_items, interval_mods):
 
     return {k: int(v) for k, v in counts.items()}
 
-def generate_report_data(items_df, modifiers_df=None):
-    """Generate report data with quantity-based counting"""
+def generate_report_data(items_df, modifiers_df=None, interval_type='1 Hour'):
+    """Generate report data with quantity-based counting and flexible interval options"""
     if items_df is None or items_df.empty:
         return pd.DataFrame()
 
     report_data = []
     dates = sorted(items_df['Order Date'].dt.date.unique())
-
+    
+    # Set interval details based on interval type
+    minute_step = 30 if interval_type == '30 Minutes' else 60
+    
     for date in dates:
         # Filter data for current date
         date_items = items_df[items_df['Order Date'].dt.date == date]
@@ -304,22 +307,54 @@ def generate_report_data(items_df, modifiers_df=None):
                 ]
             else:
                 service_mods = pd.DataFrame()
+            
+            # Process intervals based on selected interval type
+            if interval_type == '1 Hour':
+                # Process each hour
+                for hour in range(start_hour, end_hour):
+                    # Filter data for current hour
+                    interval_items = service_items[service_items['Order Date'].dt.hour == hour]
+                    interval_mods = service_mods[service_mods['Order Date'].dt.hour == hour] if not service_mods.empty else pd.DataFrame()
 
-            # Process each hour
-            for hour in range(start_hour, end_hour):
-                # Filter data for current hour
-                interval_items = service_items[service_items['Order Date'].dt.hour == hour]
-                interval_mods = service_mods[service_mods['Order Date'].dt.hour == hour] if not service_mods.empty else pd.DataFrame()
+                    # Calculate counts
+                    counts = calculate_interval_counts(interval_items, interval_mods)
 
-                # Calculate counts
-                counts = calculate_interval_counts(interval_items, interval_mods)
+                    if sum(counts.values()) > 0:
+                        report_data.append({
+                            'Service': service,
+                            'Interval': f"{hour:02d}:00",
+                            **counts
+                        })
+            else:  # 30 Minutes
+                # Process in 30-minute intervals
+                for hour in range(start_hour, end_hour):
+                    for minute in [0, 30]:
+                        # Calculate start and end times for the 30-minute interval
+                        start_time = pd.Timestamp(date).replace(hour=hour, minute=minute)
+                        end_time = start_time + pd.Timedelta(minutes=30)
+                        
+                        # Filter data for current 30-minute interval
+                        interval_items = service_items[
+                            (service_items['Order Date'] >= start_time) &
+                            (service_items['Order Date'] < end_time)
+                        ]
+                        
+                        interval_mods = pd.DataFrame()
+                        if not service_mods.empty:
+                            interval_mods = service_mods[
+                                (service_mods['Order Date'] >= start_time) &
+                                (service_mods['Order Date'] < end_time)
+                            ]
 
-                if sum(counts.values()) > 0:
-                    report_data.append({
-                        'Service': service,
-                        'Interval': f"{hour:02d}:00",
-                        **counts
-                    })
+                        # Calculate counts
+                        counts = calculate_interval_counts(interval_items, interval_mods)
+
+                        if sum(counts.values()) > 0:
+                            report_data.append({
+                                'Service': service,
+                                'Interval': f"{hour:02d}:{minute:02d}",
+                                **counts
+                            })
 
     # Create DataFrame and format
     if not report_data:

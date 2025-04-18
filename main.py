@@ -46,6 +46,19 @@ if 'locations' not in st.session_state:
 if 'selected_location' not in st.session_state:
     st.session_state.selected_location = db_locations[0] if db_locations else None
 
+# Data upload section
+st.sidebar.title('Data Upload')
+
+# Clear data button at the top of sidebar
+if st.sidebar.button('Clear Uploaded Data', type='primary', use_container_width=True):
+    st.session_state.items_df = None
+    st.session_state.modifiers_df = None
+    st.rerun()
+
+# File upload section
+items_file = st.sidebar.file_uploader("Upload Items CSV", type=['csv'])
+modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV", type=['csv'])
+
 # Sidebar filters section
 st.sidebar.title('Filters')
 
@@ -77,18 +90,9 @@ else:
     st.sidebar.error("No dates available")
     selected_date = None
 
-# Data upload section
-st.sidebar.title('Data Upload')
-
-# Clear data button at the top of sidebar
-if st.sidebar.button('Clear Uploaded Data', type='primary', use_container_width=True):
-    st.session_state.items_df = None
-    st.session_state.modifiers_df = None
-    st.rerun()
-
-# File upload section
-items_file = st.sidebar.file_uploader("Upload Items CSV", type=['csv'])
-modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV", type=['csv'])
+# Time interval filter
+interval_options = ['1 Hour', '30 Minutes']
+selected_interval = st.sidebar.radio('Time Interval', interval_options, index=0)
 
 # Load data when files are uploaded
 if items_file and modifiers_file:
@@ -129,8 +133,8 @@ if items_file and modifiers_file:
                         (new_modifiers_df['Location'] == location)
                     ]
 
-                    # Generate and save report data
-                    report_df = utils.generate_report_data(date_items, date_mods)
+                    # Generate and save report data - default to 1 Hour intervals for storage
+                    report_df = utils.generate_report_data(date_items, date_mods, interval_type='1 Hour')
                     if not report_df.empty:
                         utils.save_report_data(date, location, report_df)
 
@@ -161,7 +165,29 @@ st.markdown('<h3 class="report-title">Category Sales Count Report</h3>', unsafe_
 # Get report data for selected date and location
 if selected_date is not None and selected_location is not None:
     try:
+        # Get base report data from database (always stored in 1-hour format)
         report_df = utils.get_report_data(selected_date, selected_location)
+        
+        # If user selected 30-minute intervals and we have the original data in session state,
+        # regenerate the report with 30-minute intervals
+        if selected_interval == '30 Minutes' and st.session_state.items_df is not None and st.session_state.modifiers_df is not None:
+            # Filter data for the selected date and location
+            filtered_items = st.session_state.items_df[
+                (st.session_state.items_df['Order Date'].dt.date == selected_date) & 
+                (st.session_state.items_df['Location'] == selected_location)
+            ]
+            filtered_mods = st.session_state.modifiers_df[
+                (st.session_state.modifiers_df['Order Date'].dt.date == selected_date) & 
+                (st.session_state.modifiers_df['Location'] == selected_location)
+            ]
+            
+            # Only regenerate if we have the data for this date and location
+            if not filtered_items.empty:
+                report_df = utils.generate_report_data(
+                    filtered_items, 
+                    filtered_mods, 
+                    interval_type=selected_interval
+                )
     except Exception as e:
         st.error(f"Error retrieving report data: {str(e)}")
         report_df = pd.DataFrame()
