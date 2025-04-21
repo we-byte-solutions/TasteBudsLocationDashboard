@@ -313,7 +313,7 @@ def calculate_interval_counts(interval_items, interval_mods):
     # PLUs can be sourced from either 'PLU' column in Items CSV or 'Modifier PLU' in Modifiers CSV
     plu_mapping = {
         # 1/2 Chicken category PLUs
-        '1/2 Chix': [81831, 81990, 81991, 3074, 3001, 3009, 81828],
+        '1/2 Chix': [81831, 81990, 81991, 3074, 3001, 3009, 81828, 82316],
         
         # 1/2 Ribs category PLUs (includes PLU 2007 as requested)
         '1/2 Ribs': [82151, 82149, 82147, 3033, 3034, 3032, 81912, 3009, 2007],
