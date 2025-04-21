@@ -341,62 +341,68 @@ def calculate_interval_counts(interval_items, interval_mods):
     if not interval_items.empty:
         # Ensure 'PLU' column is numeric or use string comparison if needed
         if 'PLU' in interval_items.columns:
+            # Make a copy to avoid SettingWithCopyWarning
+            items_df = interval_items.copy()
+            
             # Try to convert to numeric for safer comparison
             try:
-                interval_items['PLU'] = pd.to_numeric(interval_items['PLU'], errors='coerce')
+                items_df['PLU'] = pd.to_numeric(items_df['PLU'], errors='coerce')
                 
-                # Count each category based on PLU
+                # Count each category based on PLU, using Qty values
                 for category, plus in plu_mapping.items():
-                    category_counts = interval_items[
-                        interval_items['PLU'].isin(plus)
+                    category_counts = items_df[
+                        items_df['PLU'].isin(plus)
                     ]['Qty'].sum()
                     counts[category] += category_counts
             except:
                 # If numeric conversion fails, use string comparison
                 for category, plus in plu_mapping.items():
-                    category_counts = interval_items[
-                        interval_items['PLU'].astype(str).isin([str(plu) for plu in plus])
+                    category_counts = items_df[
+                        items_df['PLU'].astype(str).isin([str(plu) for plu in plus])
                     ]['Qty'].sum()
                     counts[category] += category_counts
 
     # Process modifiers data
     if not interval_mods.empty:
+        # Make a copy to avoid SettingWithCopyWarning
+        mods_df = interval_mods.copy()
+        
         # For newer CSV format, check if Modifier PLU exists first
-        if 'Modifier PLU' in interval_mods.columns:
+        if 'Modifier PLU' in mods_df.columns:
             try:
                 # Create a new merged PLU column that combines both sources
-                interval_mods['PLU_Combined'] = pd.to_numeric(interval_mods['Modifier PLU'], errors='coerce')
+                mods_df['PLU_Combined'] = pd.to_numeric(mods_df['Modifier PLU'], errors='coerce')
                 
                 # Count each category based on the combined PLU field
                 for category, plus in plu_mapping.items():
-                    category_counts = interval_mods[
-                        interval_mods['PLU_Combined'].isin(plus)
+                    category_counts = mods_df[
+                        mods_df['PLU_Combined'].isin(plus)
                     ]['Qty'].sum()
                     counts[category] += category_counts
             except:
                 # If numeric conversion fails, use string comparison
                 for category, plus in plu_mapping.items():
-                    category_counts = interval_mods[
-                        interval_mods['Modifier PLU'].astype(str).isin([str(plu) for plu in plus])
+                    category_counts = mods_df[
+                        mods_df['Modifier PLU'].astype(str).isin([str(plu) for plu in plus])
                     ]['Qty'].sum()
                     counts[category] += category_counts
         # For older format or if no Modifier PLU present, use PLU column
-        elif 'PLU' in interval_mods.columns:
+        elif 'PLU' in mods_df.columns:
             # Try to convert to numeric for safer comparison
             try:
-                interval_mods['PLU'] = pd.to_numeric(interval_mods['PLU'], errors='coerce')
+                mods_df['PLU'] = pd.to_numeric(mods_df['PLU'], errors='coerce')
                 
                 # Count each category based on PLU
                 for category, plus in plu_mapping.items():
-                    category_counts = interval_mods[
-                        interval_mods['PLU'].isin(plus)
+                    category_counts = mods_df[
+                        mods_df['PLU'].isin(plus)
                     ]['Qty'].sum()
                     counts[category] += category_counts
             except:
                 # If numeric conversion fails, use string comparison
                 for category, plus in plu_mapping.items():
-                    category_counts = interval_mods[
-                        interval_mods['PLU'].astype(str).isin([str(plu) for plu in plus])
+                    category_counts = mods_df[
+                        mods_df['PLU'].astype(str).isin([str(plu) for plu in plus])
                     ]['Qty'].sum()
                     counts[category] += category_counts
 
