@@ -61,6 +61,22 @@ if col2.button('Recalculate Data', type='secondary', use_container_width=True):
         # Show recalculation status
         recalc_status = st.sidebar.status("Recalculating historical data...")
         
+        # Add a debug expander to show PLU info
+        debug_info = st.sidebar.expander("🔄 Recalculation Debug Info", expanded=False)
+        with debug_info:
+            st.write("**PLU Data Sources:**")
+            # Check for Modifier PLU column in modifiers dataframe
+            if 'Modifier PLU' in st.session_state.modifiers_df.columns:
+                st.success("Using 'Modifier PLU' column from Modifiers CSV")
+                sample_plus = st.session_state.modifiers_df['Modifier PLU'].dropna().head(5).tolist()
+                st.write(f"Sample PLUs: {sample_plus}")
+            elif 'PLU' in st.session_state.modifiers_df.columns:
+                st.warning("No 'Modifier PLU' column found. Using 'PLU' instead.")
+                sample_plus = st.session_state.modifiers_df['PLU'].dropna().head(5).tolist()
+                st.write(f"Sample PLUs: {sample_plus}")
+            else:
+                st.error("No PLU columns found in Modifiers CSV. Check data format.")
+        
         # Get all available dates for recalculation
         dates = sorted(set(st.session_state.items_df['Order Date'].dt.date))
         locations = sorted(st.session_state.items_df['Location'].unique())
@@ -83,6 +99,11 @@ if col2.button('Recalculate Data', type='secondary', use_container_width=True):
                 report_df = utils.generate_report_data(date_items, date_mods, interval_type='1 Hour')
                 if not report_df.empty:
                     utils.save_report_data(date, location, report_df)
+                    with debug_info:
+                        st.write(f"✅ Successfully calculated for {date} at {location}")
+                else:
+                    with debug_info:
+                        st.write(f"⚠️ No data generated for {date} at {location}")
         
         # Complete recalculation
         recalc_status.update(label="Recalculation complete!", state="complete")
@@ -138,6 +159,32 @@ if items_file and modifiers_file:
             # Display data info
             st.sidebar.write(f"Items rows: {len(new_items_df)}")
             st.sidebar.write(f"Modifiers rows: {len(new_modifiers_df)}")
+            
+            # Display debug info about columns for PLU tracking
+            debug_info = st.sidebar.expander("📊 Data Column Info")
+            with debug_info:
+                st.write("**Items CSV Columns:**")
+                if 'PLU' in new_items_df.columns:
+                    st.success("Using 'PLU' column from Items CSV")
+                    st.write(f"Sample PLUs: {new_items_df['PLU'].dropna().head(5).tolist()}")
+                elif 'Master Id' in new_items_df.columns:
+                    st.warning("No PLU column found. Using 'Master Id' instead.")
+                    st.write(f"Sample Master Ids: {new_items_df['Master Id'].dropna().head(5).tolist()}")
+                else:
+                    st.error("No PLU or Master Id column found in Items CSV.")
+                
+                st.write("**Modifiers CSV Columns:**")
+                if 'Modifier PLU' in new_modifiers_df.columns:
+                    st.success("Using 'Modifier PLU' column from Modifiers CSV")
+                    st.write(f"Sample Modifier PLUs: {new_modifiers_df['Modifier PLU'].dropna().head(5).tolist()}")
+                elif 'PLU' in new_modifiers_df.columns:
+                    st.warning("No Modifier PLU column. Using 'PLU' instead.")
+                    st.write(f"Sample PLUs: {new_modifiers_df['PLU'].dropna().head(5).tolist()}")
+                elif 'Master Id' in new_modifiers_df.columns:
+                    st.warning("No PLU columns found. Using 'Master Id' instead.")
+                    st.write(f"Sample Master Ids: {new_modifiers_df['Master Id'].dropna().head(5).tolist()}")
+                else:
+                    st.error("No PLU or Master Id column found in Modifiers CSV.")
 
             # Store uploaded data
             st.session_state.items_df = new_items_df
