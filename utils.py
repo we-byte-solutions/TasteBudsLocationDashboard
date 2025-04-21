@@ -309,14 +309,31 @@ def calculate_interval_counts(interval_items, interval_mods):
     }
 
     # Define PLU mappings for each category based on the updated spreadsheets
+    # IMPORTANT: When updating PLUs, make sure to include existing PLUs and add new ones at the end
+    # PLUs can be sourced from either 'PLU' column in Items CSV or 'Modifier PLU' in Modifiers CSV
     plu_mapping = {
+        # 1/2 Chicken category PLUs
         '1/2 Chix': [81831, 81990, 81991, 3074, 3001, 3009, 81828],
-        '1/2 Ribs': [82151, 82149, 82147, 3033, 3034, 3032, 81912, 3009],
+        
+        # 1/2 Ribs category PLUs (includes PLU 2007 as requested)
+        '1/2 Ribs': [82151, 82149, 82147, 3033, 3034, 3032, 81912, 3009, 2007],
+        
+        # Full Ribs category PLUs
         'Full Ribs': [2273, 2276, 2280, 81831, 81830],
+        
+        # 6oz Mod category PLUs
         '6oz Mod': [3316, 3418],
+        
+        # 8oz Mod category PLUs
         '8oz Mod': [81829, 2114],
+        
+        # Corn category PLUs
         'Corn': [2307, 3082, 3648, 2303],
+        
+        # Grits category PLUs
         'Grits': [2308, 3086, 3618, 2306],
+        
+        # Pots category PLUs
         'Pots': [2310, 3081, 3622, 2309]
     }
 
