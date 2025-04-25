@@ -76,15 +76,30 @@ if col2.button('Recalculate Data', type='secondary', use_container_width=True):
                 st.write(f"Sample PLUs: {sample_plus}")
             else:
                 st.error("No PLU columns found in Modifiers CSV. Check data format.")
+                
+            # Show locations in the data
+            locations = sorted(st.session_state.items_df['Location'].unique())
+            st.write(f"**Locations in data:** {', '.join(locations)}")
         
         # Get all available dates for recalculation
         dates = sorted(set(st.session_state.items_df['Order Date'].dt.date))
         locations = sorted(st.session_state.items_df['Location'].unique())
         
+        # If a specific location is selected, only recalculate for that location
+        if st.session_state.selected_location and st.session_state.selected_location in locations:
+            locations_to_process = [st.session_state.selected_location]
+            recalc_status.update(label=f"Recalculating data for {st.session_state.selected_location} only")
+            with debug_info:
+                st.info(f"Filtering recalculation to only process data for: {st.session_state.selected_location}")
+        else:
+            locations_to_process = locations
+            with debug_info:
+                st.info(f"Processing all locations: {', '.join(locations)}")
+        
         # Recalculate for each date and location
         for date in dates:
             recalc_status.update(label=f"Recalculating data for {date}")
-            for location in locations:
+            for location in locations_to_process:
                 # Filter data for date and location
                 date_items = st.session_state.items_df[
                     (st.session_state.items_df['Order Date'].dt.date == date) &
@@ -201,10 +216,25 @@ if items_file and modifiers_file:
 
             # Generate and save report data for new dates
             new_dates = set(new_items_df['Order Date'].dt.date)
-
+            
+            # Check if we should filter processing to a specific location
+            locations_to_process = new_locations
+            
+            # If a location is selected and present in the new data, only process that location
+            if st.session_state.selected_location and st.session_state.selected_location in new_locations:
+                locations_to_process = [st.session_state.selected_location]
+                st.sidebar.info(f"Processing data for selected location: {st.session_state.selected_location}")
+            else:
+                st.sidebar.info(f"Processing data for all locations: {', '.join(new_locations)}")
+            
+            # Create an upload status indicator
+            upload_status = st.sidebar.status("Processing uploaded data...")
+            
+            # Process each date and location
             for date in new_dates:
-                # Filter data for date and each location
-                for location in new_locations:
+                upload_status.update(label=f"Processing data for {date}")
+                for location in locations_to_process:
+                    # Filter data for date and location
                     date_items = new_items_df[
                         (new_items_df['Order Date'].dt.date == date) &
                         (new_items_df['Location'] == location)
@@ -218,7 +248,10 @@ if items_file and modifiers_file:
                     report_df = utils.generate_report_data(date_items, date_mods, interval_type='1 Hour')
                     if not report_df.empty:
                         utils.save_report_data(date, location, report_df)
-
+                        upload_status.update(label=f"Processed data for {date} at {location}")
+            
+            # Complete status
+            upload_status.update(label="Upload processing complete!", state="complete")
             st.sidebar.success('Files uploaded and processed successfully!')
     except Exception as e:
         st.sidebar.error(f'Error processing files: {str(e)}')

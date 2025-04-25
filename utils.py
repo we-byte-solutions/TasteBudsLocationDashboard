@@ -71,13 +71,24 @@ def init_db():
         raise
 
 def save_report_data(date, location, report_df):
-    """Save report data to database with improved error handling"""
+    """Save report data to database with improved error handling
+    
+    This function saves report data for a specific date and location.
+    If data for the same date and location already exists, it will be replaced.
+    Data for other locations on the same date is preserved.
+    
+    Args:
+        date: The date of the report data
+        location: The location name for this report data
+        report_df: DataFrame containing the report data
+    """
     if report_df.empty:
         return
 
     try:
         with engine.begin() as conn:  # Using transaction
-            # Delete existing data for this date and location
+            # Only delete existing data for this specific date and location combination
+            # This preserves data for other locations on the same date
             conn.execute(text("""
                 DELETE FROM new_sales_data 
                 WHERE order_date = :date AND location = :location
@@ -227,18 +238,35 @@ def convert_to_30min_intervals(hourly_df):
     return result_df
 
 def get_available_locations_and_dates():
-    """Retrieve available locations and dates from database"""
+    """Retrieve available locations and dates from database
+    
+    Returns:
+        tuple: (locations, dates)
+            - locations: Sorted list of unique location names
+            - dates: Sorted list of unique dates
+    
+    This function retrieves all distinct location names and dates from the database.
+    It's used to populate filter dropdowns and ensure all historical data is accessible.
+    """
     try:
         with engine.connect() as conn:
-            result = conn.execute(text("""
-                SELECT DISTINCT location, order_date
+            # Get all distinct locations and dates as separate queries
+            # This ensures we get all possible combinations even if some dates don't have all locations
+            locations_result = conn.execute(text("""
+                SELECT DISTINCT location
                 FROM new_sales_data
-                ORDER BY location, order_date DESC
+                ORDER BY location
+            """))
+            
+            dates_result = conn.execute(text("""
+                SELECT DISTINCT order_date
+                FROM new_sales_data
+                ORDER BY order_date DESC
             """))
 
-            data = result.fetchall()
-            locations = sorted(set(row[0] for row in data))
-            dates = sorted(set(row[1] for row in data))
+            # Extract and sort the results
+            locations = sorted([row[0] for row in locations_result.fetchall()])
+            dates = sorted([row[0] for row in dates_result.fetchall()])
 
             return locations, dates
     except SQLAlchemyError as e:
