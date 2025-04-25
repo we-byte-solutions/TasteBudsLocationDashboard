@@ -51,10 +51,28 @@ st.sidebar.title('Data Upload')
 
 # Action buttons at the top of sidebar
 col1, col2 = st.sidebar.columns(2)
-if col1.button('Clear Uploaded Data', type='primary', use_container_width=True):
+if col1.button('Clear All Data', type='primary', use_container_width=True):
     st.session_state.items_df = None
     st.session_state.modifiers_df = None
     st.rerun()
+
+# Initialize clear_upload_fields session state if not exists 
+if 'clear_upload_fields' not in st.session_state:
+    st.session_state.clear_upload_fields = False
+
+# Button to reset form for uploading another location's data
+upload_another_btn = st.sidebar.button('Upload Another Location', 
+                                      type='secondary', 
+                                      help="Clear the upload form to add data for another location",
+                                      use_container_width=True)
+
+if upload_another_btn or st.session_state.clear_upload_fields:
+    # Reset the form variables but keep existing data
+    st.session_state.clear_upload_fields = False
+    # This forces the file uploader widgets to reset without clearing the data
+    if 'widget_key' not in st.session_state:
+        st.session_state.widget_key = 0
+    st.session_state.widget_key += 1
 
 if col2.button('Recalculate Data', type='secondary', use_container_width=True):
     if st.session_state.items_df is not None and st.session_state.modifiers_df is not None:
@@ -125,9 +143,22 @@ if col2.button('Recalculate Data', type='secondary', use_container_width=True):
     else:
         st.sidebar.warning("No data available to recalculate. Please upload data files first.")
 
-# File upload section
-items_file = st.sidebar.file_uploader("Upload Items CSV", type=['csv'])
-modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV", type=['csv'])
+# File upload section - more clearly labeled for separate location files
+st.sidebar.subheader("Upload Location Data")
+# Get a unique key for the upload form
+widget_key = st.session_state.get('widget_key', 0)
+
+location_label = st.sidebar.text_input("Location Name for Upload (optional)", 
+                                     key=f"location_name_{widget_key}",
+                                     help="Enter the location name for the files you're uploading. Leave blank to use the location in the CSV.")
+
+items_file = st.sidebar.file_uploader("Upload Items CSV for Location", 
+                                     type=['csv'],
+                                     key=f"items_csv_{widget_key}")
+                                     
+modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV for Location", 
+                                        type=['csv'],
+                                        key=f"modifiers_csv_{widget_key}")
 
 # Sidebar filters section
 st.sidebar.title('Filters')
@@ -171,9 +202,27 @@ if items_file and modifiers_file:
         new_items_df, new_modifiers_df = utils.load_data(items_file, modifiers_file)
 
         if new_items_df is not None and new_modifiers_df is not None:
+            # If user specified a location name, override the location in the data
+            if location_label and location_label.strip():
+                # Make a copy to ensure we don't get warnings
+                new_items_df = new_items_df.copy()
+                new_modifiers_df = new_modifiers_df.copy()
+                
+                # Override location with user-provided location name
+                original_locations = sorted(new_items_df['Location'].unique())
+                
+                new_items_df['Location'] = location_label.strip()
+                new_modifiers_df['Location'] = location_label.strip()
+                
+                st.sidebar.success(f"Changed location from {', '.join(original_locations)} to '{location_label.strip()}'")
+            
             # Display data info
             st.sidebar.write(f"Items rows: {len(new_items_df)}")
             st.sidebar.write(f"Modifiers rows: {len(new_modifiers_df)}")
+            
+            # Get locations from data
+            file_locations = sorted(new_items_df['Location'].unique())
+            st.sidebar.write(f"Location(s) in files: {', '.join(file_locations)}")
             
             # Display debug info about columns for PLU tracking
             debug_info = st.sidebar.expander("📊 Data Column Info")
@@ -201,9 +250,16 @@ if items_file and modifiers_file:
                 else:
                     st.error("No PLU or Master Id column found in Modifiers CSV.")
 
-            # Store uploaded data
-            st.session_state.items_df = new_items_df
-            st.session_state.modifiers_df = new_modifiers_df
+            # Store uploaded data - append to existing data if present
+            if st.session_state.items_df is not None and st.session_state.modifiers_df is not None:
+                # We already have some data, so append the new data
+                st.session_state.items_df = pd.concat([st.session_state.items_df, new_items_df])
+                st.session_state.modifiers_df = pd.concat([st.session_state.modifiers_df, new_modifiers_df])
+                st.sidebar.success("Added new data to existing data")
+            else:
+                # First upload, just store the data
+                st.session_state.items_df = new_items_df
+                st.session_state.modifiers_df = new_modifiers_df
 
             # Get new locations from uploaded data
             new_locations = sorted(new_items_df['Location'].unique())
