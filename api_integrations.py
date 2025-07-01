@@ -654,28 +654,7 @@ def create_api_interface():
                             except Exception as e:
                                 st.sidebar.error(f"Error testing {endpoint}: {str(e)}")
                         
-                        # Also decode and show token info
-                        try:
-                            import json
-                            import base64
-                            # Decode JWT token to see what restaurants/permissions we have
-                            token_parts = auth_header.split('.')
-                            if len(token_parts) >= 2:
-                                # Decode payload (add padding if needed)
-                                payload = token_parts[1]
-                                payload += '=' * (4 - len(payload) % 4)
-                                decoded = base64.b64decode(payload).decode('utf-8')
-                                token_data = json.loads(decoded)
-                                
-                                st.sidebar.write("**Token Information:**")
-                                if 'https://toasttab.com/external_id' in token_data:
-                                    st.sidebar.write(f"External ID: {token_data['https://toasttab.com/external_id']}")
-                                if 'scope' in token_data:
-                                    st.sidebar.write(f"Scopes: {token_data['scope']}")
-                                if 'https://toasttab.com/partner_guid' in token_data:
-                                    st.sidebar.write(f"Partner GUID: {token_data['https://toasttab.com/partner_guid']}")
-                        except Exception as e:
-                            st.sidebar.error(f"Could not decode token: {e}")
+
                         
                         response = requests.get(f"{api_base_url}/config/v2/restaurants", headers=test_headers, timeout=10)
                         
@@ -729,8 +708,9 @@ def create_api_interface():
             
             # Date range selection
             col1, col2 = st.sidebar.columns(2)
-            start_date = col1.date_input("Start Date", value=datetime.now().date() - timedelta(days=1))
-            end_date = col2.date_input("End Date", value=datetime.now().date())
+            # Set dates to December 2024 when restaurants likely had business activity
+            start_date = col1.date_input("Start Date", value=datetime(2024, 12, 15).date())
+            end_date = col2.date_input("End Date", value=datetime(2024, 12, 15).date())
             
             # Set appropriate endpoint based on auth type
             sales_endpoint = "/orders/v2/ordersBulk" if auth_type_val == "toast_client" else "/api/sales"
