@@ -714,7 +714,7 @@ def create_api_interface():
         if data_type == "Sales Data":
             # Sales data pulling interface
             if auth_type_val == "toast_client":
-                # Define restaurant locations with correct GUIDs
+                # Define restaurant locations with correct GUIDs (no dropdown needed)
                 restaurant_options = {
                     "Zea Rotisserie & Bar - Covington": "c89fbdf2-f5d4-4109-90db-cc4b101fa4e3",
                     "Zea Rotisserie & Bar - New Orleans": "69f27d73-93ae-4092-ae21-bb9ad2e5e1ee", 
@@ -729,21 +729,7 @@ def create_api_interface():
                     "Taste Buds CSK Lab": "bf64bd9a-85bd-4d0a-a6f9-96b92299ca8d"
                 }
                 
-                # Restaurant selection dropdown
-                selected_restaurant = st.sidebar.selectbox(
-                    "Select Restaurant Location",
-                    options=list(restaurant_options.keys()),
-                    help="Choose the restaurant location to pull data from"
-                )
-                
-                # Get the GUID for the selected restaurant
-                location_for_api = restaurant_options.get(selected_restaurant, "")
-                
-                # Show the selected GUID
-                if location_for_api:
-                    st.sidebar.info(f"Using GUID: {location_for_api}")
-                else:
-                    st.sidebar.error("No GUID found for selected restaurant")
+                st.sidebar.info("🏪 Will pull data for all restaurant locations")
             else:
                 location_for_api = st.sidebar.text_input(
                     "Location ID for API",
@@ -767,17 +753,22 @@ def create_api_interface():
                             progress_bar = st.progress(0)
                             status_text = st.empty()
                             
+                            # Make sure we're authenticated
+                            if not st.session_state.get('toast_authenticated', False):
+                                st.error("Please authenticate with Toast first")
+                                st.stop()
+                            
                             for i, (restaurant_name, restaurant_guid) in enumerate(restaurant_options.items()):
                                 progress = (i + 1) / len(restaurant_options)
                                 progress_bar.progress(progress)
                                 status_text.write(f"Processing {restaurant_name}...")
                                 
-                                # Pull data for this restaurant
-                                items_df = api_puller.pull_sales_data(
+                                # Use the direct Toast API call instead of generic pull_sales_data
+                                items_df = api_puller._pull_toast_orders(
                                     api_base_url, 
                                     restaurant_guid, 
-                                    (start_date, end_date),
-                                    sales_endpoint
+                                    start_date, 
+                                    end_date
                                 )
                                 
                                 if items_df is not None and not items_df.empty:
