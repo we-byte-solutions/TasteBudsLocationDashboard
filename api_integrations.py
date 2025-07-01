@@ -24,23 +24,71 @@ class APIDataPuller:
         Set authentication for API requests
         
         Args:
-            auth_type: Type of authentication ('bearer', 'basic', 'api_key', 'custom')
+            auth_type: Type of authentication ('bearer', 'basic', 'api_key', 'custom', 'toast_client')
             **kwargs: Authentication parameters
         """
         if auth_type == 'bearer':
             token = kwargs.get('token')
-            self.session.headers['Authorization'] = f'Bearer {token}'
+            if token:
+                self.session.headers['Authorization'] = f'Bearer {token}'
         elif auth_type == 'api_key':
             key = kwargs.get('key')
             header_name = kwargs.get('header', 'X-API-Key')
-            self.session.headers[header_name] = key
+            if key:
+                self.session.headers[header_name] = key
         elif auth_type == 'basic':
             username = kwargs.get('username')
             password = kwargs.get('password')
-            self.session.auth = (username, password)
+            if username and password:
+                self.session.auth = (username, password)
         elif auth_type == 'custom':
             headers = kwargs.get('headers', {})
             self.session.headers.update(headers)
+        elif auth_type == 'toast_client':
+            # Store Toast credentials for login
+            self.toast_client_id = kwargs.get('client_id')
+            self.toast_client_secret = kwargs.get('client_secret')
+    
+    def authenticate_toast(self, base_url: str) -> bool:
+        """
+        Authenticate with Toast API using client credentials
+        
+        Args:
+            base_url: Base URL for Toast API (e.g., https://ws-api.toasttab.com)
+            
+        Returns:
+            True if authentication successful, False otherwise
+        """
+        if not hasattr(self, 'toast_client_id') or not hasattr(self, 'toast_client_secret'):
+            return False
+            
+        login_url = f"{base_url}/authentication/v1/authentication/login"
+        
+        login_data = {
+            "clientId": self.toast_client_id,
+            "clientSecret": self.toast_client_secret,
+            "userAccessType": "TOAST_MACHINE_CLIENT"
+        }
+        
+        try:
+            response = self.session.post(
+                login_url,
+                json=login_data,
+                headers={'Content-Type': 'application/json'}
+            )
+            
+            if response.status_code == 200:
+                auth_data = response.json()
+                access_token = auth_data.get('accessToken')
+                if access_token:
+                    # Set the bearer token for subsequent requests
+                    self.session.headers['Authorization'] = f'Bearer {access_token}'
+                    return True
+            return False
+            
+        except Exception as e:
+            print(f"Toast authentication error: {e}")
+            return False
     
     def pull_sales_data(self, base_url: str, location: str, date_range: tuple, 
                        endpoint_path: str = '/api/sales') -> Optional[pd.DataFrame]:
@@ -223,8 +271,14 @@ def create_api_interface():
     
     # API Configuration
     with st.sidebar.expander("🔧 API Configuration", expanded=False):
+        # Set default URL based on auth type
+        default_url = ""
+        if auth_type == "Toast POS Client":
+            default_url = "https://ws-api.toasttab.com"
+            
         api_base_url = st.text_input(
             "API Base URL", 
+            value=default_url,
             placeholder="https://api.your-pos-system.com",
             help="Base URL of your POS system or data API"
         )
@@ -232,11 +286,23 @@ def create_api_interface():
         # Authentication setup
         auth_type = st.selectbox(
             "Authentication Type",
-            ["None", "API Key", "Bearer Token", "Basic Auth", "Custom Headers"]
+            ["None", "Toast POS Client", "API Key", "Bearer Token", "Basic Auth", "Custom Headers"]
         )
         
         auth_config = {}
-        if auth_type == "API Key":
+        if auth_type == "Toast POS Client":
+            st.info("Toast POS Authentication - Client Credentials")
+            client_id = st.text_input("Client ID", value="3Oo5OQGDxStzViylPqBhJsp7gqTmP9DR")
+            client_secret = st.text_input("Client Secret", 
+                                        value="LUGY6f9VM_-tKdLYcOM1pm2em0jcTbTBRAFO2fd1qT1RkgdZ1Akf0mUg7DdrNIt0",
+                                        type="password")
+            if client_id and client_secret:
+                auth_config = {"type": "toast_client", "client_id": client_id, "client_secret": client_secret}
+                # Auto-set Toast API base URL
+                if not api_base_url:
+                    api_base_url = "https://ws-api.toasttab.com"
+        
+        elif auth_type == "API Key":
             api_key = st.text_input("API Key", type="password")
             header_name = st.text_input("Header Name", value="X-API-Key")
             if api_key:
@@ -273,6 +339,15 @@ def create_api_interface():
         if auth_config:
             auth_type = auth_config.pop("type")
             api_puller.set_authentication(auth_type, **auth_config)
+            
+            # Special handling for Toast authentication
+            if auth_type == "toast_client":
+                if st.sidebar.button("🔐 Authenticate with Toast", use_container_width=True):
+                    with st.sidebar.spinner("Authenticating with Toast..."):
+                        if api_puller.authenticate_toast(api_base_url):
+                            st.sidebar.success("✅ Toast authentication successful")
+                        else:
+                            st.sidebar.error("❌ Toast authentication failed")
         
         # Test connection
         col1, col2 = st.sidebar.columns(2)
@@ -301,9 +376,11 @@ def create_api_interface():
             start_date = col1.date_input("Start Date", value=datetime.now().date() - timedelta(days=1))
             end_date = col2.date_input("End Date", value=datetime.now().date())
             
+            # Set appropriate endpoint based on auth type
+            default_endpoint = "/orders/v2/orders" if auth_type == "Toast POS Client" else "/api/sales"
             sales_endpoint = st.sidebar.text_input(
                 "Sales Endpoint", 
-                value="/api/sales",
+                value=default_endpoint,
                 help="API endpoint for sales data"
             )
             
