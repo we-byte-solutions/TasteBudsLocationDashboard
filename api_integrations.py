@@ -176,9 +176,12 @@ class APIDataPuller:
                 'Authorization': auth_header
             }
             
+            # Try using businessDate format as alternative
+            business_date = start_date.strftime('%Y%m%d')
+            
+            # Use businessDate instead of date range - might have different permissions
             params = {
-                'startDate': start_iso,
-                'endDate': end_iso
+                'businessDate': business_date
             }
             
             print(f"Toast API request: {url}")
@@ -193,6 +196,13 @@ class APIDataPuller:
             if response.status_code == 200:
                 orders_data = response.json()
                 return self._process_toast_orders(orders_data, restaurant_id)
+            elif response.status_code == 403:
+                print(f"Permission denied. This usually means:")
+                print(f"1. Client credentials don't have access to restaurant {restaurant_id}")
+                print(f"2. Restaurant External ID is incorrect")
+                print(f"3. API client needs additional permissions from Toast")
+                print(f"Full error: {response.text}")
+                return None
             else:
                 print(f"Toast API error: {response.status_code} - {response.text}")
                 return None
@@ -533,10 +543,35 @@ def create_api_interface():
         col1, col2 = st.sidebar.columns(2)
         
         if col1.button("Test Connection", use_container_width=True):
-            if api_puller.test_connection(api_base_url):
-                st.sidebar.success("✅ API connection successful")
+            if auth_type_val == "toast_client":
+                # Test Toast specific endpoints
+                try:
+                    import requests
+                    auth_header = st.session_state.get('toast_token', '')
+                    if auth_header:
+                        # Try a basic Toast API call that might have less restrictions
+                        test_headers = {'Authorization': f'Bearer {auth_header}'}
+                        response = requests.get(f"{api_base_url}/config/v2/restaurants", headers=test_headers, timeout=10)
+                        
+                        if response.status_code == 200:
+                            restaurants = response.json()
+                            st.sidebar.success(f"✅ Connected! Found {len(restaurants)} restaurants")
+                            if restaurants:
+                                st.sidebar.write("Available restaurants:")
+                                for restaurant in restaurants[:3]:  # Show first 3
+                                    st.sidebar.write(f"• {restaurant.get('restaurantName', 'Unknown')} ({restaurant.get('guid', 'No GUID')})")
+                        else:
+                            st.sidebar.error(f"❌ API test failed: {response.status_code}")
+                            st.sidebar.text(response.text[:200])
+                    else:
+                        st.sidebar.error("❌ Please authenticate first")
+                except Exception as e:
+                    st.sidebar.error(f"❌ Connection test error: {str(e)}")
             else:
-                st.sidebar.error("❌ API connection failed")
+                if api_puller.test_connection(api_base_url):
+                    st.sidebar.success("✅ API connection successful")
+                else:
+                    st.sidebar.error("❌ API connection failed")
         
         # Pull data options
         data_type = st.sidebar.selectbox(
