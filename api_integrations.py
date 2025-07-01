@@ -708,9 +708,10 @@ def create_api_interface():
             
             # Date range selection
             col1, col2 = st.sidebar.columns(2)
-            # Set dates to December 2024 when restaurants likely had business activity
-            start_date = col1.date_input("Start Date", value=datetime(2024, 12, 15).date())
-            end_date = col2.date_input("End Date", value=datetime(2024, 12, 15).date())
+            # Set dates to previous calendar day since there's business activity every day
+            yesterday = datetime.now().date() - timedelta(days=1)
+            start_date = col1.date_input("Start Date", value=yesterday)
+            end_date = col2.date_input("End Date", value=yesterday)
             
             # Set appropriate endpoint based on auth type
             sales_endpoint = "/orders/v2/ordersBulk" if auth_type_val == "toast_client" else "/api/sales"
