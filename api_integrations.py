@@ -269,8 +269,15 @@ def create_api_interface():
     """
     st.sidebar.subheader("API Data Source")
     
+    # Authentication setup (outside expander for global access)
+    auth_type = st.sidebar.selectbox(
+        "Authentication Type",
+        ["None", "Toast POS Client", "API Key", "Bearer Token", "Basic Auth", "Custom Headers"]
+    )
+    
     # API Configuration
-    with st.sidebar.expander("🔧 API Configuration", expanded=False):
+    with st.sidebar.expander("🔧 API Configuration", expanded=True):
+        
         # Set default URL based on auth type
         default_url = ""
         if auth_type == "Toast POS Client":
@@ -281,12 +288,6 @@ def create_api_interface():
             value=default_url,
             placeholder="https://api.your-pos-system.com",
             help="Base URL of your POS system or data API"
-        )
-        
-        # Authentication setup
-        auth_type = st.selectbox(
-            "Authentication Type",
-            ["None", "Toast POS Client", "API Key", "Bearer Token", "Basic Auth", "Custom Headers"]
         )
         
         auth_config = {}
