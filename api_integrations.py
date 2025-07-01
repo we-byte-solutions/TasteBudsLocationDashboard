@@ -112,7 +112,7 @@ class APIDataPuller:
         
         Args:
             base_url: Base URL of the API
-            location: Location identifier
+            location: Location identifier (Toast Restaurant External ID)
             date_range: Tuple of (start_date, end_date)
             endpoint_path: API endpoint path
             
@@ -122,6 +122,11 @@ class APIDataPuller:
         try:
             start_date, end_date = date_range
             
+            # Handle Toast API specifically
+            if 'toasttab.com' in base_url and endpoint_path == '/orders/v2/orders':
+                return self._pull_toast_orders(base_url, location, start_date, end_date)
+            
+            # Generic API handling
             params = {
                 'location': location,
                 'start_date': start_date.isoformat() if hasattr(start_date, 'isoformat') else str(start_date),
@@ -134,65 +139,172 @@ class APIDataPuller:
             response.raise_for_status()
             
             data = response.json()
+            return self._process_generic_api_response(data, location)
+                
+        except Exception as e:
+            print(f"Error pulling sales data: {e}")
+            return None
+    
+    def _pull_toast_orders(self, base_url: str, restaurant_id: str, start_date, end_date) -> Optional[pd.DataFrame]:
+        """
+        Pull orders from Toast API using the ordersBulk endpoint
+        """
+        try:
+            from datetime import datetime, timezone
             
-            # Convert to DataFrame format expected by the system
-            if isinstance(data, list):
-                df = pd.DataFrame(data)
-            elif isinstance(data, dict) and 'data' in data:
-                df = pd.DataFrame(data['data'])
-            else:
-                df = pd.DataFrame([data])
+            # Convert dates to ISO format for Toast API
+            start_datetime = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            end_datetime = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
             
-            # Standardize column names to match existing system
-            column_mapping = {
-                'item_id': 'PLU',
-                'product_id': 'PLU', 
-                'plu_code': 'PLU',
-                'master_id': 'Master Id',
-                'quantity': 'Qty',
-                'qty': 'Qty',
-                'order_time': 'Order Date',
-                'transaction_time': 'Order Date',
-                'timestamp': 'Order Date',
-                'store_location': 'Location',
-                'location_name': 'Location',
-                'store_name': 'Location',
-                'item_name': 'Menu Item',
-                'product_name': 'Menu Item',
-                'modifier_name': 'Modifier',
-                'is_void': 'Void?',
-                'voided': 'Void?'
+            start_iso = start_datetime.isoformat()
+            end_iso = end_datetime.isoformat()
+            
+            url = f"{base_url}/orders/v2/ordersBulk"
+            
+            headers = {
+                'Toast-Restaurant-External-ID': restaurant_id,
+                'Authorization': self.session.headers.get('Authorization', '')
             }
             
-            # Rename columns if they exist
-            for old_name, new_name in column_mapping.items():
-                if old_name in df.columns:
-                    df.rename(columns={old_name: new_name}, inplace=True)
+            params = {
+                'startDate': start_iso,
+                'endDate': end_iso
+            }
             
-            # Ensure required columns exist
-            required_columns = ['Order Date', 'Location', 'Qty']
-            for col in required_columns:
-                if col not in df.columns:
-                    st.warning(f"Missing required column: {col}")
-                    return None
+            print(f"Toast API request: {url}")
+            print(f"Headers: {headers}")
+            print(f"Params: {params}")
             
-            # Process data types
-            df['Order Date'] = pd.to_datetime(df['Order Date'])
-            df['Qty'] = pd.to_numeric(df['Qty'], errors='coerce').fillna(0)
+            response = self.session.get(url, params=params, headers=headers)
             
-            if 'Void?' in df.columns:
-                df['Void?'] = df['Void?'].astype(str).str.lower()
+            print(f"Toast API response status: {response.status_code}")
+            print(f"Toast API response: {response.text[:500]}")
+            
+            if response.status_code == 200:
+                orders_data = response.json()
+                return self._process_toast_orders(orders_data, restaurant_id)
             else:
-                df['Void?'] = 'false'
-            
-            return df
-            
-        except requests.exceptions.RequestException as e:
-            st.error(f"API request failed: {str(e)}")
-            return None
+                print(f"Toast API error: {response.status_code} - {response.text}")
+                return None
+                
         except Exception as e:
-            st.error(f"Error processing API data: {str(e)}")
+            print(f"Error pulling Toast orders: {e}")
+            import traceback
+            traceback.print_exc()
             return None
+    
+    def _process_toast_orders(self, orders_data: list, restaurant_id: str) -> pd.DataFrame:
+        """
+        Process Toast orders data into the expected format
+        """
+        processed_items = []
+        
+        for order in orders_data:
+            order_date = order.get('openedDate', '')
+            order_guid = order.get('guid', '')
+            
+            # Process each check in the order
+            for check in order.get('checks', []):
+                # Process each selection (menu item) in the check
+                for selection in check.get('selections', []):
+                    item_data = {
+                        'PLU': selection.get('guid', ''),  # Using selection GUID as PLU
+                        'Menu Item': selection.get('displayName', ''),
+                        'Qty': int(selection.get('quantity', 0)),
+                        'Order Date': order_date,
+                        'Location': restaurant_id,
+                        'Void?': str(selection.get('voided', False)).lower(),
+                        'Order GUID': order_guid,
+                        'Check GUID': check.get('guid', ''),
+                        'Selection GUID': selection.get('guid', '')
+                    }
+                    processed_items.append(item_data)
+                    
+                    # Process modifiers for this selection
+                    for modifier in selection.get('modifiers', []):
+                        modifier_data = {
+                            'PLU': modifier.get('guid', ''),
+                            'Menu Item': modifier.get('displayName', ''),
+                            'Qty': int(modifier.get('quantity', 0)),
+                            'Order Date': order_date,
+                            'Location': restaurant_id,
+                            'Void?': str(modifier.get('voided', False)).lower(),
+                            'Order GUID': order_guid,
+                            'Check GUID': check.get('guid', ''),
+                            'Selection GUID': selection.get('guid', ''),
+                            'Modifier GUID': modifier.get('guid', '')
+                        }
+                        processed_items.append(modifier_data)
+        
+        df = pd.DataFrame(processed_items)
+        
+        if not df.empty:
+            # Convert Order Date to proper datetime
+            df['Order Date'] = pd.to_datetime(df['Order Date'], errors='coerce')
+            
+            # Ensure Qty is numeric
+            df['Qty'] = pd.to_numeric(df['Qty'], errors='coerce').fillna(0)
+        
+        return df
+    
+    def _process_generic_api_response(self, data, location: str) -> pd.DataFrame:
+        """
+        Process generic API response into expected format
+        """
+        # Convert to DataFrame format expected by the system
+        if isinstance(data, list):
+            df = pd.DataFrame(data)
+        elif isinstance(data, dict) and 'data' in data:
+            df = pd.DataFrame(data['data'])
+        else:
+            df = pd.DataFrame([data])
+        
+        # Standardize column names to match existing system
+        column_mapping = {
+            'item_id': 'PLU',
+            'product_id': 'PLU', 
+            'plu_code': 'PLU',
+            'master_id': 'Master Id',
+            'quantity': 'Qty',
+            'qty': 'Qty',
+            'order_time': 'Order Date',
+            'transaction_time': 'Order Date',
+            'timestamp': 'Order Date',
+            'store_location': 'Location',
+            'location_name': 'Location',
+            'store_name': 'Location',
+            'item_name': 'Menu Item',
+            'product_name': 'Menu Item',
+            'modifier_name': 'Modifier',
+            'is_void': 'Void?',
+            'voided': 'Void?'
+        }
+        
+        # Rename columns if they exist
+        for old_name, new_name in column_mapping.items():
+            if old_name in df.columns:
+                df.rename(columns={old_name: new_name}, inplace=True)
+        
+        # Ensure required columns exist with defaults
+        if 'PLU' not in df.columns:
+            df['PLU'] = ''
+        if 'Menu Item' not in df.columns:
+            df['Menu Item'] = ''
+        if 'Qty' not in df.columns:
+            df['Qty'] = 1
+        if 'Order Date' not in df.columns:
+            df['Order Date'] = pd.Timestamp.now()
+        if 'Location' not in df.columns:
+            df['Location'] = location
+        if 'Void?' not in df.columns:
+            df['Void?'] = 'false'
+        
+        # Process data types
+        df['Order Date'] = pd.to_datetime(df['Order Date'], errors='coerce')
+        df['Qty'] = pd.to_numeric(df['Qty'], errors='coerce').fillna(0)
+        df['Void?'] = df['Void?'].astype(str).str.lower()
+        
+        return df
     
     def pull_menu_items(self, base_url: str, endpoint_path: str = '/api/menu') -> Optional[pd.DataFrame]:
         """
@@ -417,10 +529,16 @@ def create_api_interface():
         
         if data_type == "Sales Data":
             # Sales data pulling interface
-            location_for_api = st.sidebar.text_input(
-                "Location ID for API",
-                help="Location identifier used by your API"
-            )
+            if auth_type_val == "toast_client":
+                location_for_api = st.sidebar.text_input(
+                    "Toast Restaurant External ID",
+                    help="The GUID of the restaurant from Toast (required header)"
+                )
+            else:
+                location_for_api = st.sidebar.text_input(
+                    "Location ID for API",
+                    help="Location identifier used by your API"
+                )
             
             # Date range selection
             col1, col2 = st.sidebar.columns(2)
