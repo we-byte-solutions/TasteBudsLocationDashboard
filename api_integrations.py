@@ -806,17 +806,36 @@ def create_api_interface():
                                         except Exception as e:
                                             st.error(f"Error processing {restaurant_name}: {str(e)}")
                                             continue
+                                else:
+                                    # API call successful but no data (empty array)
+                                    st.write(f"ℹ️ {restaurant_name}: No orders found for selected date")
+                                    all_data_processed.append(f"{restaurant_name}: 0 orders (normal for this date)")
                                 
                             progress_bar.empty()
                             status_text.empty()
                             
                             if all_data_processed:
-                                st.success(f"✅ Successfully processed data for {len(all_data_processed)} location-dates")
-                                st.write("**Processing Summary:**")
-                                for summary in all_data_processed:
-                                    st.write(f"• {summary}")
+                                # Count actual data vs no-data entries
+                                with_data = [s for s in all_data_processed if not "0 orders" in s]
+                                no_data = [s for s in all_data_processed if "0 orders" in s]
+                                
+                                if with_data:
+                                    st.success(f"✅ Successfully processed data for {len(with_data)} locations with orders")
+                                    st.write("**Locations with orders:**")
+                                    for summary in with_data:
+                                        st.write(f"• {summary}")
+                                
+                                if no_data:
+                                    st.info(f"ℹ️ {len(no_data)} locations had no orders for this date (normal)")
+                                    with st.expander("Show locations with no orders"):
+                                        for summary in no_data:
+                                            st.write(f"• {summary}")
+                                
+                                if not with_data:
+                                    st.warning("🔍 No orders found for any location on this date")
+                                    st.info("💡 **Tip**: Try June 30th, 2025 - I saw actual order data for that date in earlier tests")
                             else:
-                                st.error("❌ No data found for any locations")
+                                st.error("❌ API calls failed for all locations")
                     else:
                         st.error("❌ Please select start and end dates")
             
