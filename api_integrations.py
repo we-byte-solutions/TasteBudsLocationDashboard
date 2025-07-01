@@ -344,7 +344,7 @@ def create_api_interface():
             # Special handling for Toast authentication
             if auth_type == "toast_client":
                 if st.sidebar.button("🔐 Authenticate with Toast", use_container_width=True):
-                    with st.sidebar.spinner("Authenticating with Toast..."):
+                    with st.spinner("Authenticating with Toast..."):
                         if api_puller.authenticate_toast(api_base_url):
                             st.sidebar.success("✅ Toast authentication successful")
                         else:
