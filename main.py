@@ -4,6 +4,7 @@ import utils
 from PIL import Image
 import sys
 import traceback
+import api_integrations
 
 # Configure Streamlit page
 st.set_page_config(
@@ -48,6 +49,13 @@ if 'selected_location' not in st.session_state:
 
 # Data upload section
 st.sidebar.title('Data Upload')
+
+# Add API data source option
+data_source = st.sidebar.radio(
+    "Data Source",
+    ["Upload CSV Files", "Pull from API"],
+    help="Choose between uploading CSV files or pulling data from an API"
+)
 
 # Action buttons at the top of sidebar
 col1, col2 = st.sidebar.columns(2)
@@ -143,22 +151,48 @@ if col2.button('Recalculate Data', type='secondary', use_container_width=True):
     else:
         st.sidebar.warning("No data available to recalculate. Please upload data files first.")
 
-# File upload section - more clearly labeled for separate location files
-st.sidebar.subheader("Upload Location Data")
-# Get a unique key for the upload form
-widget_key = st.session_state.get('widget_key', 0)
+# Conditional data input based on source selection
+if data_source == "Upload CSV Files":
+    # File upload section - more clearly labeled for separate location files
+    st.sidebar.subheader("Upload Location Data")
+    # Get a unique key for the upload form
+    widget_key = st.session_state.get('widget_key', 0)
 
-location_label = st.sidebar.text_input("Location Name for Upload (optional)", 
-                                     key=f"location_name_{widget_key}",
-                                     help="Enter the location name for the files you're uploading. Leave blank to use the location in the CSV.")
+    location_label = st.sidebar.text_input("Location Name for Upload (optional)", 
+                                         key=f"location_name_{widget_key}",
+                                         help="Enter the location name for the files you're uploading. Leave blank to use the location in the CSV.")
 
-items_file = st.sidebar.file_uploader("Upload Items CSV for Location", 
-                                     type=['csv'],
-                                     key=f"items_csv_{widget_key}")
-                                     
-modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV for Location", 
-                                        type=['csv'],
-                                        key=f"modifiers_csv_{widget_key}")
+    items_file = st.sidebar.file_uploader("Upload Items CSV for Location", 
+                                         type=['csv'],
+                                         key=f"items_csv_{widget_key}")
+                                         
+    modifiers_file = st.sidebar.file_uploader("Upload Modifiers CSV for Location", 
+                                            type=['csv'],
+                                            key=f"modifiers_csv_{widget_key}")
+
+else:  # Pull from API
+    # API interface
+    st.sidebar.subheader("API Data Source")
+    
+    # Show API capabilities
+    with st.sidebar.expander("ℹ️ API Integration Info", expanded=False):
+        st.write("**Supported APIs:**")
+        st.write("• POS Systems (Square, Toast, etc.)")
+        st.write("• Restaurant Management Systems")
+        st.write("• Custom sales data APIs")
+        st.write("")
+        st.write("**Required Data Format:**")
+        st.write("• Items with PLU codes or product IDs")
+        st.write("• Quantities and timestamps")
+        st.write("• Location identifiers")
+        st.write("• Order dates and times")
+    
+    api_integrations.create_api_interface()
+    
+    # Set default values for file variables when using API
+    location_label = None
+    items_file = None
+    modifiers_file = None
 
 # Sidebar filters section
 st.sidebar.title('Filters')
