@@ -161,9 +161,19 @@ class APIDataPuller:
             
             url = f"{base_url}/orders/v2/ordersBulk"
             
+            # Get the current authorization header - try session state first
+            auth_header = self.session.headers.get('Authorization', '')
+            if not auth_header and hasattr(st, 'session_state') and hasattr(st.session_state, 'toast_token'):
+                auth_header = f"Bearer {st.session_state.toast_token}"
+                self.session.headers['Authorization'] = auth_header
+                
+            if not auth_header:
+                print("No authorization token found - please authenticate first")
+                return None
+                
             headers = {
                 'Toast-Restaurant-External-ID': restaurant_id,
-                'Authorization': self.session.headers.get('Authorization', '')
+                'Authorization': auth_header
             }
             
             params = {
@@ -474,6 +484,11 @@ def create_api_interface():
             
             # Special handling for Toast authentication
             if auth_type_val == "toast_client":
+                # Show authentication status
+                if st.session_state.get('toast_authenticated', False):
+                    st.sidebar.success("✅ Toast authenticated")
+                    st.sidebar.info(f"Token: ...{st.session_state.get('toast_token', '')[-20:]}")
+                
                 if st.sidebar.button("🔐 Authenticate with Toast", use_container_width=True):
                     with st.spinner("Authenticating with Toast..."):
                         # Test authentication directly with a simple approach
@@ -501,6 +516,8 @@ def create_api_interface():
                                     st.sidebar.success("✅ Toast authentication successful")
                                     st.session_state.toast_authenticated = True
                                     st.session_state.toast_token = access_token
+                                    # Also set the token in the API puller session for reuse
+                                    api_puller.session.headers['Authorization'] = f'Bearer {access_token}'
                                 else:
                                     st.sidebar.error("❌ No access token received")
                                     st.sidebar.json(auth_data)
