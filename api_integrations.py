@@ -756,17 +756,12 @@ def create_api_interface():
             end_date = col2.date_input("End Date", value=datetime.now().date())
             
             # Set appropriate endpoint based on auth type
-            default_endpoint = "/orders/v2/orders" if auth_type == "Toast POS Client" else "/api/sales"
-            sales_endpoint = st.sidebar.text_input(
-                "Sales Endpoint", 
-                value=default_endpoint,
-                help="API endpoint for sales data"
-            )
+            sales_endpoint = "/orders/v2/ordersBulk" if auth_type_val == "toast_client" else "/api/sales"
             
-            # Add bulk pull button for Toast
-            if auth_type_val == "toast_client":
-                if st.sidebar.button("🔄 Pull All Locations", use_container_width=True):
-                    if start_date and end_date:
+            if st.sidebar.button("Pull Sales Data", use_container_width=True):
+                if start_date and end_date:
+                    if auth_type_val == "toast_client":
+                        # Toast: Pull all locations
                         with st.spinner("Pulling data for all locations..."):
                             all_data_processed = []
                             progress_bar = st.progress(0)
@@ -788,7 +783,7 @@ def create_api_interface():
                                 if items_df is not None and not items_df.empty:
                                     # Ensure location is set correctly
                                     items_df['Location'] = restaurant_name
-                                    modifiers_df = items_df.copy()  # For now, assume same data
+                                    modifiers_df = items_df.copy()
                                     
                                     # Process and save data for each date
                                     new_dates = set(items_df['Order Date'].dt.date) if 'Order Date' in items_df.columns else {start_date}
@@ -798,7 +793,6 @@ def create_api_interface():
                                         date_mods = modifiers_df[modifiers_df['Order Date'].dt.date == date] if 'Order Date' in modifiers_df.columns else modifiers_df
                                         
                                         try:
-                                            import utils
                                             report_df = utils.generate_report_data(date_items, date_mods, interval_type='1 Hour')
                                             if not report_df.empty:
                                                 utils.save_report_data(date, restaurant_name, report_df)
@@ -806,95 +800,65 @@ def create_api_interface():
                                         except Exception as e:
                                             st.error(f"Error processing {restaurant_name}: {str(e)}")
                                             continue
-                                else:
-                                    # API call successful but no data (empty array)
-                                    st.write(f"ℹ️ {restaurant_name}: No orders found for selected date")
-                                    all_data_processed.append(f"{restaurant_name}: 0 orders (normal for this date)")
                                 
                             progress_bar.empty()
                             status_text.empty()
                             
+                            # Only show locations with data
                             if all_data_processed:
-                                # Count actual data vs no-data entries
-                                with_data = [s for s in all_data_processed if not "0 orders" in s]
-                                no_data = [s for s in all_data_processed if "0 orders" in s]
-                                
-                                if with_data:
-                                    st.success(f"✅ Successfully processed data for {len(with_data)} locations with orders")
-                                    st.write("**Locations with orders:**")
-                                    for summary in with_data:
-                                        st.write(f"• {summary}")
-                                
-                                if no_data:
-                                    st.info(f"ℹ️ {len(no_data)} locations had no orders for this date (normal)")
-                                    with st.expander("Show locations with no orders"):
-                                        for summary in no_data:
-                                            st.write(f"• {summary}")
-                                
-                                if not with_data:
-                                    st.warning("🔍 No orders found for any location on this date")
-                                    st.info("💡 **Tip**: Try June 30th, 2025 - I saw actual order data for that date in earlier tests")
-                            else:
-                                st.error("❌ API calls failed for all locations")
-                    else:
-                        st.error("❌ Please select start and end dates")
-            
-            if col2.button("Pull Single Location", use_container_width=True):
-                if location_for_api:
-                    with st.sidebar.status("Pulling sales data from API...") as status:
-                        # Pull items data
-                        items_df = api_puller.pull_sales_data(
-                            api_base_url, 
-                            location_for_api, 
-                            (start_date, end_date),
-                            sales_endpoint
-                        )
-                        
-                        # For now, assume modifiers come from the same endpoint
-                        # In practice, you might have separate endpoints
-                        modifiers_df = items_df.copy() if items_df is not None else None
-                        
-                        if items_df is not None and modifiers_df is not None:
-                            # Process the data similar to CSV upload
-                            new_locations = sorted(items_df['Location'].unique())
-                            new_dates = set(items_df['Order Date'].dt.date)
-                            
-                            status.update(label="Processing API data...")
-                            
-                            # Store in session state (similar to CSV processing)
-                            if st.session_state.get('items_df') is not None:
-                                st.session_state.items_df = pd.concat([st.session_state.items_df, items_df])
-                                st.session_state.modifiers_df = pd.concat([st.session_state.modifiers_df, modifiers_df])
-                            else:
-                                st.session_state.items_df = items_df
-                                st.session_state.modifiers_df = modifiers_df
-                            
-                            # Update locations
-                            db_locations, _ = utils.get_available_locations_and_dates()
-                            st.session_state.locations = sorted(set(db_locations + new_locations))
-                            
-                            # Process and save data
-                            for date in new_dates:
-                                for location in new_locations:
-                                    date_items = items_df[
-                                        (items_df['Order Date'].dt.date == date) &
-                                        (items_df['Location'] == location)
-                                    ]
-                                    date_mods = modifiers_df[
-                                        (modifiers_df['Order Date'].dt.date == date) &
-                                        (modifiers_df['Location'] == location)
-                                    ]
+                                st.success(f"✅ Successfully processed data for {len(all_data_processed)} locations with orders")
+                                st.write("**Processing Summary:**")
+                                for summary in all_data_processed:
+                                    st.write(f"• {summary}")
                                     
-                                    report_df = utils.generate_report_data(date_items, date_mods, interval_type='1 Hour')
-                                    if not report_df.empty:
-                                        utils.save_report_data(date, location, report_df)
-                            
-                            status.update(label="API data processing complete!", state="complete")
-                            st.sidebar.success(f"Successfully pulled {len(items_df)} records from API")
+                                # Update locations list
+                                db_locations, _ = utils.get_available_locations_and_dates()
+                                st.session_state.locations = sorted(set(db_locations))
+                            else:
+                                st.warning("No orders found for any location on this date")
+                                
+                    else:
+                        # Other APIs: Single location
+                        if location_for_api:
+                            with st.sidebar.status("Pulling sales data from API...") as status:
+                                items_df = api_puller.pull_sales_data(
+                                    api_base_url, 
+                                    location_for_api, 
+                                    (start_date, end_date),
+                                    sales_endpoint
+                                )
+                                
+                                modifiers_df = items_df.copy() if items_df is not None else None
+                                
+                                if items_df is not None and modifiers_df is not None:
+                                    new_locations = sorted(items_df['Location'].unique())
+                                    new_dates = set(items_df['Order Date'].dt.date)
+                                    
+                                    status.update(label="Processing API data...")
+                                    
+                                    for date in new_dates:
+                                        for location in new_locations:
+                                            date_items = items_df[
+                                                (items_df['Order Date'].dt.date == date) &
+                                                (items_df['Location'] == location)
+                                            ]
+                                            date_mods = modifiers_df[
+                                                (modifiers_df['Order Date'].dt.date == date) &
+                                                (modifiers_df['Location'] == location)
+                                            ]
+                                            
+                                            report_df = utils.generate_report_data(date_items, date_mods, interval_type='1 Hour')
+                                            if not report_df.empty:
+                                                utils.save_report_data(date, location, report_df)
+                                    
+                                    status.update(label="API data processing complete!", state="complete")
+                                    st.sidebar.success(f"Successfully pulled {len(items_df)} records from API")
+                                else:
+                                    st.sidebar.error("Failed to pull data from API")
                         else:
-                            st.sidebar.error("Failed to pull data from API")
+                            st.sidebar.error("Please enter a location ID")
                 else:
-                    st.sidebar.error("Please enter a location ID")
+                    st.sidebar.error("Please select start and end dates")
         
         elif data_type == "Menu Items":
             menu_endpoint = st.sidebar.text_input(
@@ -922,21 +886,7 @@ def create_api_interface():
                     st.sidebar.success(f"Retrieved {len(categories)} categories")
                     st.sidebar.json(categories)
     
-    # Add API setup examples
-    with st.sidebar.expander("📖 API Setup Examples", expanded=False):
-        st.write("**Test API Endpoint:**")
-        st.code("https://jsonplaceholder.typicode.com/posts")
-        st.write("*Use this for testing the connection feature*")
-        st.write("")
-        st.write("**Common POS Systems:**")
-        st.write("• Square: connect.squareup.com")
-        st.write("• Toast: api.toasttab.com") 
-        st.write("• Clover: api.clover.com")
-        st.write("")
-        st.write("**Authentication:**")
-        st.write("• Most systems use Bearer tokens")
-        st.write("• Some use API keys in headers")
-        st.write("• Test with your system's documentation")
+
 
 # Example API response formats for documentation
 API_EXAMPLES = {
