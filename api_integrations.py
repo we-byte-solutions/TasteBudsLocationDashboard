@@ -714,15 +714,36 @@ def create_api_interface():
         if data_type == "Sales Data":
             # Sales data pulling interface
             if auth_type_val == "toast_client":
-                # Show the external ID from the token
-                if st.session_state.get('toast_authenticated', False):
-                    st.sidebar.info("💡 Try using your token's External ID: CAA0f8f72ea23c54")
+                # Define restaurant locations with correct GUIDs
+                restaurant_options = {
+                    "Zea Rotisserie & Bar - Covington": "c89fbdf2-f5d4-4109-90db-cc4b101fa4e3",
+                    "Zea Rotisserie & Bar - New Orleans": "69f27d73-93ae-4092-ae21-bb9ad2e5e1ee", 
+                    "Zea Rotisserie & Bar- Harvey": "97a109e1-b68c-49ce-b33c-07a609781f6c",
+                    "Zea Rotisserie & Cafe - Harahan": "c4431eef-a069-4b7b-bd0a-94a81ddf382e",
+                    "Zea Rotisserie & Bar - Metairie": "e15eb797-90c2-43aa-80f0-bf6a62ee4ceb",
+                    "Zea Rotisserie & Bar - Kenner": "d130031a-d7b0-40a9-bd0b-523661d41e3f",
+                    "Zea Rotisserie & Bar - Baton Rouge": "eff435a1-e629-4c1a-bb83-e0312cc5b5f0",
+                    "Zea Rotisserie & Bar - Lafayette": "333ed1d7-ee67-45de-b776-10230825984b",
+                    "Zea Rotisserie & Bar - Denham Springs": "90b9c29c-2ccd-46d6-ac41-28c34e3d60ab",
+                    "Zea Rotisserie & Bar - Ridgeland": "4b78f3a8-15c8-4da8-9210-e2e253a24157",
+                    "Taste Buds CSK Lab": "bf64bd9a-85bd-4d0a-a6f9-96b92299ca8d"
+                }
                 
-                location_for_api = st.sidebar.text_input(
-                    "Toast Restaurant External ID",
-                    value="CAA0f8f72ea23c54",
-                    help="The GUID of the restaurant from Toast (required header). Try using your token's External ID shown above."
+                # Restaurant selection dropdown
+                selected_restaurant = st.sidebar.selectbox(
+                    "Select Restaurant Location",
+                    options=list(restaurant_options.keys()),
+                    help="Choose the restaurant location to pull data from"
                 )
+                
+                # Get the GUID for the selected restaurant
+                location_for_api = restaurant_options.get(selected_restaurant, "")
+                
+                # Show the selected GUID
+                if location_for_api:
+                    st.sidebar.info(f"Using GUID: {location_for_api}")
+                else:
+                    st.sidebar.error("No GUID found for selected restaurant")
             else:
                 location_for_api = st.sidebar.text_input(
                     "Location ID for API",
