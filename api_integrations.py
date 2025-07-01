@@ -145,6 +145,42 @@ class APIDataPuller:
             print(f"Error pulling sales data: {e}")
             return None
     
+    def _get_toast_restaurants(self, base_url: str) -> Optional[list]:
+        """
+        Get list of restaurants accessible with current Toast credentials
+        """
+        try:
+            auth_header = self.session.headers.get('Authorization', '')
+            if not auth_header and hasattr(st, 'session_state') and hasattr(st.session_state, 'toast_token'):
+                auth_header = f"Bearer {st.session_state.toast_token}"
+                
+            if not auth_header:
+                return None
+                
+            # Try different restaurant endpoints
+            endpoints_to_try = [
+                "/config/v2/restaurants",
+                "/restaurants/v1/restaurants",
+                "/config/v1/restaurants"
+            ]
+            
+            for endpoint in endpoints_to_try:
+                try:
+                    headers = {'Authorization': auth_header}
+                    response = self.session.get(f"{base_url}{endpoint}", headers=headers, timeout=10)
+                    if response.status_code == 200:
+                        restaurants = response.json()
+                        if restaurants:
+                            print(f"Found restaurants using endpoint: {endpoint}")
+                            return restaurants
+                except Exception as e:
+                    continue
+                    
+            return None
+        except Exception as e:
+            print(f"Error getting restaurants: {str(e)}")
+            return None
+    
     def _pull_toast_orders(self, base_url: str, restaurant_id: str, start_date, end_date) -> Optional[pd.DataFrame]:
         """
         Pull orders from Toast API using the ordersBulk endpoint
@@ -159,6 +195,44 @@ class APIDataPuller:
             start_iso = start_datetime.isoformat()
             end_iso = end_datetime.isoformat()
             
+            # First, try to get available restaurants to validate the restaurant_id
+            restaurants = self._get_toast_restaurants(base_url)
+            if restaurants:
+                print("Available restaurants:")
+                for restaurant in restaurants:
+                    name = restaurant.get('restaurantName', restaurant.get('name', 'Unknown'))
+                    guid = restaurant.get('guid', restaurant.get('id', 'No GUID'))
+                    print(f"  - {name} (GUID: {guid})")
+                
+                # Check if provided restaurant_id matches any available restaurant
+                valid_restaurant = None
+                for restaurant in restaurants:
+                    if (restaurant.get('guid') == restaurant_id or 
+                        restaurant.get('externalId') == restaurant_id or
+                        restaurant.get('id') == restaurant_id):
+                        valid_restaurant = restaurant
+                        break
+                
+                if valid_restaurant:
+                    # Use the correct GUID from the restaurant data
+                    restaurant_guid = valid_restaurant.get('guid', valid_restaurant.get('id', restaurant_id))
+                    print(f"Using validated restaurant GUID: {restaurant_guid}")
+                else:
+                    print(f"Warning: Restaurant ID {restaurant_id} not found in available restaurants")
+                    # Try to use the first available restaurant
+                    if restaurants:
+                        first_restaurant = restaurants[0]
+                        restaurant_guid = first_restaurant.get('guid', first_restaurant.get('id'))
+                        if restaurant_guid:
+                            print(f"Using first available restaurant GUID: {restaurant_guid}")
+                        else:
+                            restaurant_guid = restaurant_id
+                    else:
+                        restaurant_guid = restaurant_id
+            else:
+                restaurant_guid = restaurant_id
+                print(f"Could not retrieve restaurants list, using provided ID: {restaurant_guid}")
+            
             url = f"{base_url}/orders/v2/ordersBulk"
             
             # Get the current authorization header - try session state first
@@ -172,7 +246,7 @@ class APIDataPuller:
                 return None
                 
             headers = {
-                'Toast-Restaurant-External-ID': restaurant_id,
+                'Toast-Restaurant-External-ID': restaurant_guid,
                 'Authorization': auth_header
             }
             
@@ -195,12 +269,17 @@ class APIDataPuller:
             
             if response.status_code == 200:
                 orders_data = response.json()
-                return self._process_toast_orders(orders_data, restaurant_id)
+                return self._process_toast_orders(orders_data, restaurant_guid)
             elif response.status_code == 403:
                 print(f"Permission denied. This usually means:")
-                print(f"1. Client credentials don't have access to restaurant {restaurant_id}")
+                print(f"1. Client credentials don't have access to restaurant {restaurant_guid}")
                 print(f"2. Restaurant External ID is incorrect")
                 print(f"3. API client needs additional permissions from Toast")
+                print(f"Full error: {response.text}")
+                return None
+            elif response.status_code == 400:
+                print(f"Bad request - malformed restaurant identifier: {restaurant_guid}")
+                print(f"This means the restaurant GUID format is incorrect.")
                 print(f"Full error: {response.text}")
                 return None
             else:
