@@ -60,6 +60,7 @@ class APIDataPuller:
             True if authentication successful, False otherwise
         """
         if not hasattr(self, 'toast_client_id') or not hasattr(self, 'toast_client_secret'):
+            print("Missing Toast credentials")
             return False
             
         login_url = f"{base_url}/authentication/v1/authentication/login"
@@ -71,23 +72,37 @@ class APIDataPuller:
         }
         
         try:
+            print(f"Attempting Toast login to: {login_url}")
+            print(f"Client ID: {self.toast_client_id}")
+            
             response = self.session.post(
                 login_url,
                 json=login_data,
                 headers={'Content-Type': 'application/json'}
             )
             
+            print(f"Response status: {response.status_code}")
+            print(f"Response content: {response.text}")
+            
             if response.status_code == 200:
                 auth_data = response.json()
-                access_token = auth_data.get('accessToken')
+                # Toast API returns token in nested structure
+                token_data = auth_data.get('token', {})
+                access_token = token_data.get('accessToken')
+                
                 if access_token:
                     # Set the bearer token for subsequent requests
                     self.session.headers['Authorization'] = f'Bearer {access_token}'
+                    print("Authentication successful!")
                     return True
+                else:
+                    print("No access token in response")
             return False
             
         except Exception as e:
             print(f"Toast authentication error: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def pull_sales_data(self, base_url: str, location: str, date_range: tuple, 
@@ -298,6 +313,9 @@ def create_api_interface():
                                         value="LUGY6f9VM_-tKdLYcOM1pm2em0jcTbTBRAFO2fd1qT1RkgdZ1Akf0mUg7DdrNIt0",
                                         type="password")
             if client_id and client_secret:
+                # Clean up any potential whitespace
+                client_id = client_id.strip()
+                client_secret = client_secret.strip()
                 auth_config = {"type": "toast_client", "client_id": client_id, "client_secret": client_secret}
                 # Auto-set Toast API base URL
                 if not api_base_url:
@@ -338,17 +356,49 @@ def create_api_interface():
         
         # Set authentication if configured
         if auth_config:
-            auth_type = auth_config.pop("type")
-            api_puller.set_authentication(auth_type, **auth_config)
+            auth_type_val = auth_config.get("type")
+            auth_params = {k: v for k, v in auth_config.items() if k != "type"}
+            api_puller.set_authentication(auth_type_val, **auth_params)
             
             # Special handling for Toast authentication
-            if auth_type == "toast_client":
+            if auth_type_val == "toast_client":
                 if st.sidebar.button("🔐 Authenticate with Toast", use_container_width=True):
                     with st.spinner("Authenticating with Toast..."):
-                        if api_puller.authenticate_toast(api_base_url):
-                            st.sidebar.success("✅ Toast authentication successful")
-                        else:
-                            st.sidebar.error("❌ Toast authentication failed")
+                        # Test authentication directly with a simple approach
+                        try:
+                            import requests
+                            login_url = f"{api_base_url}/authentication/v1/authentication/login"
+                            login_data = {
+                                "clientId": auth_config.get("client_id"),
+                                "clientSecret": auth_config.get("client_secret"),
+                                "userAccessType": "TOAST_MACHINE_CLIENT"
+                            }
+                            
+                            response = requests.post(
+                                login_url,
+                                json=login_data,
+                                headers={'Content-Type': 'application/json'}
+                            )
+                            
+                            if response.status_code == 200:
+                                auth_data = response.json()
+                                token_data = auth_data.get('token', {})
+                                access_token = token_data.get('accessToken')
+                                
+                                if access_token:
+                                    st.sidebar.success("✅ Toast authentication successful")
+                                    st.session_state.toast_authenticated = True
+                                    st.session_state.toast_token = access_token
+                                else:
+                                    st.sidebar.error("❌ No access token received")
+                                    st.sidebar.json(auth_data)
+                            else:
+                                st.sidebar.error(f"❌ Authentication failed (Status: {response.status_code})")
+                                st.sidebar.text(response.text[:500])
+                                
+                        except Exception as e:
+                            st.sidebar.error(f"❌ Authentication error: {str(e)}")
+                            st.session_state.toast_authenticated = False
         
         # Test connection
         col1, col2 = st.sidebar.columns(2)
