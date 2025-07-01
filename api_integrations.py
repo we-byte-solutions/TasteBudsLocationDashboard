@@ -491,30 +491,24 @@ class APIDataPuller:
 
 def create_api_interface():
     """
-    Create Streamlit interface for API configuration and data pulling
+    Create Streamlit interface for Toast API configuration and data pulling
     """
-    st.sidebar.subheader("API Data Source")
+    st.sidebar.subheader("Toast POS API")
     
-    # Authentication setup (outside expander for global access)
-    auth_type = st.sidebar.selectbox(
-        "Authentication Type",
-        ["None", "Toast POS Client", "API Key", "Bearer Token", "Basic Auth", "Custom Headers"]
-    )
+    # Show successful locations if any
+    if 'successful_locations' in st.session_state and st.session_state.successful_locations:
+        st.sidebar.markdown("### ✅ Recent Data Pulls")
+        for location in st.session_state.successful_locations:
+            st.sidebar.write(f"• {location}")
+        st.sidebar.markdown("---")
     
-    # API Configuration
+    # Fixed authentication type for Toast
+    auth_type = "Toast POS Client"
+    
+    # API Configuration (simplified for Toast)
     with st.sidebar.expander("🔧 API Configuration", expanded=True):
-        
-        # Set default URL based on auth type
-        default_url = ""
-        if auth_type == "Toast POS Client":
-            default_url = "https://ws-api.toasttab.com"
-            
-        api_base_url = st.text_input(
-            "API Base URL", 
-            value=default_url,
-            placeholder="https://api.your-pos-system.com",
-            help="Base URL of your POS system or data API"
-        )
+        api_base_url = "https://ws-api.toasttab.com"
+        st.text(f"API URL: {api_base_url}")
         
         auth_config = {}
         if auth_type == "Toast POS Client":

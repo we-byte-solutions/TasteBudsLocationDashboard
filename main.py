@@ -50,12 +50,8 @@ if 'selected_location' not in st.session_state:
 # Data upload section
 st.sidebar.title('Data Upload')
 
-# Add API data source option
-data_source = st.sidebar.radio(
-    "Data Source",
-    ["Upload CSV Files", "Pull from API"],
-    help="Choose between uploading CSV files or pulling data from an API"
-)
+# Toast API Integration only
+data_source = "Pull from API"
 
 # Action buttons at the top of sidebar
 col1, col2 = st.sidebar.columns(2)
