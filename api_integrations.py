@@ -763,7 +763,64 @@ def create_api_interface():
                 help="API endpoint for sales data"
             )
             
-            if col2.button("Pull Sales Data", use_container_width=True):
+            # Add bulk pull button for Toast
+            if auth_type_val == "toast_client":
+                if st.sidebar.button("🔄 Pull All Locations", use_container_width=True):
+                    if start_date and end_date:
+                        with st.spinner("Pulling data for all locations..."):
+                            all_data_processed = []
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
+                            for i, (restaurant_name, restaurant_guid) in enumerate(restaurant_options.items()):
+                                progress = (i + 1) / len(restaurant_options)
+                                progress_bar.progress(progress)
+                                status_text.write(f"Processing {restaurant_name}...")
+                                
+                                # Pull data for this restaurant
+                                items_df = api_puller.pull_sales_data(
+                                    api_base_url, 
+                                    restaurant_guid, 
+                                    (start_date, end_date),
+                                    sales_endpoint
+                                )
+                                
+                                if items_df is not None and not items_df.empty:
+                                    # Ensure location is set correctly
+                                    items_df['Location'] = restaurant_name
+                                    modifiers_df = items_df.copy()  # For now, assume same data
+                                    
+                                    # Process and save data for each date
+                                    new_dates = set(items_df['Order Date'].dt.date) if 'Order Date' in items_df.columns else {start_date}
+                                    
+                                    for date in new_dates:
+                                        date_items = items_df[items_df['Order Date'].dt.date == date] if 'Order Date' in items_df.columns else items_df
+                                        date_mods = modifiers_df[modifiers_df['Order Date'].dt.date == date] if 'Order Date' in modifiers_df.columns else modifiers_df
+                                        
+                                        try:
+                                            import utils
+                                            report_df = utils.generate_report_data(date_items, date_mods, interval_type='1 Hour')
+                                            if not report_df.empty:
+                                                utils.save_report_data(date, restaurant_name, report_df)
+                                                all_data_processed.append(f"{restaurant_name}: {len(date_items)} records")
+                                        except Exception as e:
+                                            st.error(f"Error processing {restaurant_name}: {str(e)}")
+                                            continue
+                                
+                            progress_bar.empty()
+                            status_text.empty()
+                            
+                            if all_data_processed:
+                                st.success(f"✅ Successfully processed data for {len(all_data_processed)} location-dates")
+                                st.write("**Processing Summary:**")
+                                for summary in all_data_processed:
+                                    st.write(f"• {summary}")
+                            else:
+                                st.error("❌ No data found for any locations")
+                    else:
+                        st.error("❌ Please select start and end dates")
+            
+            if col2.button("Pull Single Location", use_container_width=True):
                 if location_for_api:
                     with st.sidebar.status("Pulling sales data from API...") as status:
                         # Pull items data
