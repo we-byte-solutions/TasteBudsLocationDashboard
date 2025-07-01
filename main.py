@@ -47,8 +47,8 @@ if 'locations' not in st.session_state:
 if 'selected_location' not in st.session_state:
     st.session_state.selected_location = db_locations[0] if db_locations else None
 
-# Data upload section
-st.sidebar.title('Data Upload')
+# Toast API section
+st.sidebar.title('Toast POS Integration')
 
 # Toast API Integration only
 data_source = "Pull from API"

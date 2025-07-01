@@ -700,10 +700,7 @@ def create_api_interface():
                     st.sidebar.error("❌ API connection failed")
         
         # Pull data options
-        data_type = st.sidebar.selectbox(
-            "Data to Pull",
-            ["Sales Data", "Menu Items", "Category Mappings"]
-        )
+        data_type = "Sales Data"  # Fixed for Toast integration
         
         if data_type == "Sales Data":
             # Sales data pulling interface
@@ -791,6 +788,10 @@ def create_api_interface():
                             
                             # Only show locations with data
                             if all_data_processed:
+                                # Extract successful location names for sidebar display
+                                successful_locations = [summary.split(":")[0] for summary in all_data_processed]
+                                st.session_state.successful_locations = successful_locations
+                                
                                 st.success(f"✅ Successfully processed data for {len(all_data_processed)} locations with orders")
                                 st.write("**Processing Summary:**")
                                 for summary in all_data_processed:
@@ -799,6 +800,9 @@ def create_api_interface():
                                 # Update locations list
                                 db_locations, _ = utils.get_available_locations_and_dates()
                                 st.session_state.locations = sorted(set(db_locations))
+                                
+                                # Refresh the page to show successful locations in sidebar
+                                st.rerun()
                             else:
                                 st.warning("No orders found for any location on this date")
                                 
