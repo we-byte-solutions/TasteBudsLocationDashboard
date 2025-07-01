@@ -549,8 +549,61 @@ def create_api_interface():
                     import requests
                     auth_header = st.session_state.get('toast_token', '')
                     if auth_header:
-                        # Try a basic Toast API call that might have less restrictions
+                        # Try different Toast API endpoints to find accessible ones
                         test_headers = {'Authorization': f'Bearer {auth_header}'}
+                        
+                        # Test various endpoints to see what's accessible
+                        test_endpoints = [
+                            "/config/v2/restaurants",
+                            "/restaurants/v1/restaurants", 
+                            "/orders/v2/payments",
+                            "/usermgmt/v1/users/me"
+                        ]
+                        
+                        for endpoint in test_endpoints:
+                            try:
+                                response = requests.get(f"{api_base_url}{endpoint}", headers=test_headers, timeout=5)
+                                if response.status_code == 200:
+                                    st.sidebar.success(f"✅ Accessible endpoint: {endpoint}")
+                                    if 'restaurants' in endpoint:
+                                        data = response.json()
+                                        if isinstance(data, list) and data:
+                                            st.sidebar.write("Available restaurants:")
+                                            for restaurant in data[:3]:
+                                                st.sidebar.write(f"• {restaurant.get('restaurantName', 'Unknown')} ({restaurant.get('guid', 'No GUID')})")
+                                    break
+                                elif response.status_code == 403:
+                                    st.sidebar.warning(f"⚠ Forbidden: {endpoint}")
+                                elif response.status_code == 404:
+                                    st.sidebar.info(f"ℹ Not found: {endpoint}")
+                                else:
+                                    st.sidebar.error(f"❌ {endpoint}: {response.status_code}")
+                            except Exception as e:
+                                st.sidebar.error(f"Error testing {endpoint}: {str(e)}")
+                        
+                        # Also decode and show token info
+                        try:
+                            import json
+                            import base64
+                            # Decode JWT token to see what restaurants/permissions we have
+                            token_parts = auth_header.split('.')
+                            if len(token_parts) >= 2:
+                                # Decode payload (add padding if needed)
+                                payload = token_parts[1]
+                                payload += '=' * (4 - len(payload) % 4)
+                                decoded = base64.b64decode(payload).decode('utf-8')
+                                token_data = json.loads(decoded)
+                                
+                                st.sidebar.write("**Token Information:**")
+                                if 'https://toasttab.com/external_id' in token_data:
+                                    st.sidebar.write(f"External ID: {token_data['https://toasttab.com/external_id']}")
+                                if 'scope' in token_data:
+                                    st.sidebar.write(f"Scopes: {token_data['scope']}")
+                                if 'https://toasttab.com/partner_guid' in token_data:
+                                    st.sidebar.write(f"Partner GUID: {token_data['https://toasttab.com/partner_guid']}")
+                        except Exception as e:
+                            st.sidebar.error(f"Could not decode token: {e}")
+                        
                         response = requests.get(f"{api_base_url}/config/v2/restaurants", headers=test_headers, timeout=10)
                         
                         if response.status_code == 200:
@@ -582,9 +635,14 @@ def create_api_interface():
         if data_type == "Sales Data":
             # Sales data pulling interface
             if auth_type_val == "toast_client":
+                # Show the external ID from the token
+                if st.session_state.get('toast_authenticated', False):
+                    st.sidebar.info("💡 Try using your token's External ID: CAA0f8f72ea23c54")
+                
                 location_for_api = st.sidebar.text_input(
                     "Toast Restaurant External ID",
-                    help="The GUID of the restaurant from Toast (required header)"
+                    value="CAA0f8f72ea23c54",
+                    help="The GUID of the restaurant from Toast (required header). Try using your token's External ID shown above."
                 )
             else:
                 location_for_api = st.sidebar.text_input(
