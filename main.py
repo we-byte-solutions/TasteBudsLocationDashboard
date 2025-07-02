@@ -193,20 +193,25 @@ else:  # Pull from API
 # Sidebar filters section
 st.sidebar.title('Filters')
 
+# Refresh locations from database to include newly pulled data
+current_db_locations, current_db_dates = utils.get_available_locations_and_dates()
+if current_db_locations:
+    st.session_state.locations = sorted(set(current_db_locations))
+
 # Location filter
 if st.session_state.locations:
     selected_location = st.sidebar.selectbox(
         'Location',
         options=st.session_state.locations,
-        index=st.session_state.locations.index(st.session_state.selected_location) if st.session_state.selected_location else 0
+        index=st.session_state.locations.index(st.session_state.selected_location) if st.session_state.selected_location and st.session_state.selected_location in st.session_state.locations else 0
     )
     st.session_state.selected_location = selected_location
 else:
     st.sidebar.error("No locations available")
     selected_location = None
 
-# Date filter - Use dates from database if no uploaded data
-dates = sorted(set(db_dates))
+# Date filter - Use current dates from database including newly pulled data
+dates = sorted(set(current_db_dates))
 if st.session_state.items_df is not None:
     dates = sorted(set(dates + list(st.session_state.items_df['Order Date'].dt.date.unique())))
 
