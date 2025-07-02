@@ -750,11 +750,24 @@ def create_api_interface():
                                         date_mods = modifiers_df[modifiers_df['Order Date'].dt.date == date] if 'Order Date' in modifiers_df.columns else modifiers_df
                                         
                                         try:
+                                            print(f"Generating report data for {restaurant_name} on {date}")
+                                            print(f"Date items columns: {list(date_items.columns) if not date_items.empty else 'Empty'}")
+                                            print(f"Date items sample: {date_items.head(2).to_dict('records') if not date_items.empty else 'Empty'}")
+                                            
                                             report_df = utils.generate_report_data(date_items, date_mods, interval_type='1 Hour')
+                                            print(f"Generated report_df shape: {report_df.shape if not report_df.empty else 'Empty'}")
+                                            
                                             if not report_df.empty:
+                                                print(f"Saving report data for {restaurant_name} on {date}")
                                                 utils.save_report_data(date, restaurant_name, report_df)
+                                                print(f"Successfully saved data for {restaurant_name}")
                                                 all_data_processed.append(f"{restaurant_name}: {len(date_items)} records")
+                                            else:
+                                                print(f"No report data generated for {restaurant_name} on {date} - empty report_df")
                                         except Exception as e:
+                                            print(f"Error processing {restaurant_name}: {str(e)}")
+                                            import traceback
+                                            traceback.print_exc()
                                             st.error(f"Error processing {restaurant_name}: {str(e)}")
                                             continue
                                 
