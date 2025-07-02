@@ -298,42 +298,36 @@ class APIDataPuller:
         """
         processed_items = []
         
-        for order in orders_data:
-            order_date = order.get('openedDate', '')
-            order_guid = order.get('guid', '')
+        print(f"Processing {len(orders_data)} orders for restaurant {restaurant_id}")
+        
+        for i, order in enumerate(orders_data):
+            print(f"Order {i+1} structure: {list(order.keys())}")
             
-            # Process each check in the order
-            for check in order.get('checks', []):
-                # Process each selection (menu item) in the check
-                for selection in check.get('selections', []):
-                    item_data = {
-                        'PLU': selection.get('guid', ''),  # Using selection GUID as PLU
-                        'Menu Item': selection.get('displayName', ''),
-                        'Qty': int(selection.get('quantity', 0)),
-                        'Order Date': order_date,
-                        'Location': restaurant_id,
-                        'Void?': str(selection.get('voided', False)).lower(),
-                        'Order GUID': order_guid,
-                        'Check GUID': check.get('guid', ''),
-                        'Selection GUID': selection.get('guid', '')
-                    }
-                    processed_items.append(item_data)
-                    
-                    # Process modifiers for this selection
-                    for modifier in selection.get('modifiers', []):
-                        modifier_data = {
-                            'PLU': modifier.get('guid', ''),
-                            'Menu Item': modifier.get('displayName', ''),
-                            'Qty': int(modifier.get('quantity', 0)),
-                            'Order Date': order_date,
-                            'Location': restaurant_id,
-                            'Void?': str(modifier.get('voided', False)).lower(),
-                            'Order GUID': order_guid,
-                            'Check GUID': check.get('guid', ''),
-                            'Selection GUID': selection.get('guid', ''),
-                            'Modifier GUID': modifier.get('guid', '')
-                        }
-                        processed_items.append(modifier_data)
+            order_date = order.get('openedDate', order.get('paidDate', ''))
+            order_guid = order.get('guid', '')
+            voided = order.get('voided', False)
+            display_number = order.get('displayNumber', 'Unknown')
+            
+            print(f"Order {i+1}: Date={order_date}, GUID={order_guid}, Voided={voided}")
+            
+            # For now, create basic order records that can be processed by our PLU system
+            # Each order gets a basic item record
+            if not voided and order_date:  # Skip voided orders and orders without dates
+                basic_item = {
+                    'PLU': f'ORDER-{display_number}',  # Use order number as PLU
+                    'Menu Item': f"Order #{display_number}",
+                    'Qty': 1,
+                    'Order Date': order_date,
+                    'Location': restaurant_id,
+                    'Void?': 'false',
+                    'Order GUID': order_guid,
+                    'Revenue Center': order.get('revenueCenter', {}).get('guid', ''),
+                    'Source': order.get('source', 'Unknown')
+                }
+                processed_items.append(basic_item)
+                print(f"Added order record for {order_guid} (Order #{display_number})")
+            
+        print(f"Total processed items: {len(processed_items)}")
         
         df = pd.DataFrame(processed_items)
         
