@@ -57,6 +57,7 @@ def init_db():
                     corn INTEGER NOT NULL DEFAULT 0,
                     grits INTEGER NOT NULL DEFAULT 0,
                     pots INTEGER NOT NULL DEFAULT 0,
+                    toast_orders INTEGER NOT NULL DEFAULT 0,
                     total INTEGER NOT NULL DEFAULT 0,
                     UNIQUE (location, order_date, service, interval_time)
                 );
@@ -103,11 +104,11 @@ def save_report_data(date, location, report_df):
                     INSERT INTO new_sales_data 
                     (location, order_date, service, interval_time, 
                     half_chix, half_ribs, full_ribs, six_oz_mod, eight_oz_mod,
-                    corn, grits, pots, total)
+                    corn, grits, pots, toast_orders, total)
                     VALUES 
                     (:location, :order_date, :service, :interval_time,
                     :half_chix, :half_ribs, :full_ribs, :six_oz_mod, :eight_oz_mod,
-                    :corn, :grits, :pots, :total)
+                    :corn, :grits, :pots, :toast_orders, :total)
                     ON CONFLICT (location, order_date, service, interval_time)
                     DO UPDATE SET
                         half_chix = EXCLUDED.half_chix,
@@ -118,6 +119,7 @@ def save_report_data(date, location, report_df):
                         corn = EXCLUDED.corn,
                         grits = EXCLUDED.grits,
                         pots = EXCLUDED.pots,
+                        toast_orders = EXCLUDED.toast_orders,
                         total = EXCLUDED.total
                 """), {
                     'location': location,
@@ -132,6 +134,7 @@ def save_report_data(date, location, report_df):
                     'corn': row['Corn'],
                     'grits': row['Grits'],
                     'pots': row['Pots'],
+                    'toast_orders': row['Toast Orders'],
                     'total': row['Total']
                 })
     except SQLAlchemyError as e:
@@ -153,6 +156,7 @@ def get_report_data(date, location, interval_type='1 Hour'):
                        corn as "Corn",
                        grits as "Grits",
                        pots as "Pots",
+                       toast_orders as "Toast Orders",
                        total as "Total"
                 FROM new_sales_data
                 WHERE order_date = :date
@@ -333,7 +337,7 @@ def calculate_interval_counts(interval_items, interval_mods):
     counts = {
         '1/2 Chix': 0, '1/2 Ribs': 0, 'Full Ribs': 0,
         '6oz Mod': 0, '8oz Mod': 0,
-        'Corn': 0, 'Grits': 0, 'Pots': 0
+        'Corn': 0, 'Grits': 0, 'Pots': 0, 'Toast Orders': 0
     }
 
     # Define PLU mappings for each category based on the updated spreadsheets
@@ -362,7 +366,10 @@ def calculate_interval_counts(interval_items, interval_mods):
         'Grits': [2308, 3086, 3618, 2306],
         
         # Pots category PLUs
-        'Pots': [2310, 3081, 3622, 2309]
+        'Pots': [2310, 3081, 3622, 2309],
+        
+        # Toast Orders category (for API-pulled data)
+        'Toast Orders': [9999]
     }
 
     # Process items data

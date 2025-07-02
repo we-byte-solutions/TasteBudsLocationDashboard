@@ -311,11 +311,11 @@ class APIDataPuller:
             print(f"Order {i+1}: Date={order_date}, GUID={order_guid}, Voided={voided}")
             
             # For now, create basic order records that can be processed by our PLU system
-            # Each order gets a basic item record
+            # Each order gets a basic item record with a generic PLU
             if not voided and order_date:  # Skip voided orders and orders without dates
                 basic_item = {
-                    'PLU': f'ORDER-{display_number}',  # Use order number as PLU
-                    'Menu Item': f"Order #{display_number}",
+                    'PLU': '9999',  # Use generic PLU that maps to "Toast Orders" category
+                    'Menu Item': f"Toast Order #{display_number}",
                     'Qty': 1,
                     'Order Date': order_date,
                     'Location': restaurant_id,
