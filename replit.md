@@ -37,6 +37,12 @@ Advanced Streamlit-powered sales analytics dashboard designed for comprehensive 
   - Added connection testing and data validation
   - Integrated API interface into main application with radio button selection
   - Enhanced multi-location upload workflow with form reset capability
+- 2025-07-01: Streamlined Toast-only interface
+  - Removed all dropdown menus (data source, auth type, data type, restaurant selection)
+  - Fixed interface to Toast POS Client authentication only
+  - Removed token display box for cleaner UI
+  - Set default dates to previous calendar day for daily business activity
+  - Toast API successfully pulling order data from restaurant locations
 
 ## User Preferences
 - Prefers simple, everyday language explanations
