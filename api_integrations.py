@@ -296,6 +296,24 @@ class APIDataPuller:
         """
         Process Toast orders data into the expected format
         """
+        # Create GUID to location mapping based on existing location data
+        guid_to_location = {
+            'c89fbdf2-f5d4-4109-90db-cc4b101fa4e3': 'Covington',
+            'e15eb797-90c2-43aa-80f0-bf6a62ee4ceb': 'Metairie', 
+            'd130031a-d7b0-40a9-bd0b-523661d41e3f': 'Kenner',
+            '90b9c29c-2ccd-46d6-ac41-28c34e3d60ab': 'Denham Springs',
+            '4b78f3a8-15c8-4da8-9210-e2e253a24157': 'Ridgeland',
+            'bf64bd9a-85bd-4d0a-a6f9-96b92299ca8d': 'Taste Buds CSK Lab',
+            'eff435a1-e629-4c1a-bb83-e0312cc5b5f0': 'Baton Rouge',
+            '333ed1d7-ee67-45de-b776-10230825984b': 'Lafayette',
+            '69f27d73-93ae-4092-ae21-bb9ad2e5e1ee': 'New Orleans',
+            '97a109e1-b68c-49ce-b33c-07a609781f6c': 'Harvey',
+            'c4431eef-a069-4b7b-bd0a-94a81ddf382e': 'Harahan'
+        }
+        
+        # Get the proper location name, fallback to restaurant_id if not found
+        location_name = guid_to_location.get(restaurant_id, restaurant_id)
+        
         processed_items = []
         
         print(f"Processing {len(orders_data)} orders for restaurant {restaurant_id}")
@@ -318,7 +336,7 @@ class APIDataPuller:
                     'Menu Item': f"Toast Order #{display_number}",
                     'Qty': 1,
                     'Order Date': order_date,
-                    'Location': restaurant_id,
+                    'Location': location_name,
                     'Void?': 'false',
                     'Order GUID': order_guid,
                     'Revenue Center': order.get('revenueCenter', {}).get('guid', ''),
