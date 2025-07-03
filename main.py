@@ -381,7 +381,7 @@ else:
 # Format data for display
 if not report_df.empty:
     # Ensure all numeric columns are integers
-    numeric_cols = ['1/2 Chix', '1/2 Ribs', 'Full Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Grits', 'Pots', 'Total']
+    numeric_cols = ['1/2 Chix', '1/2 Ribs', 'Full Ribs', '6oz Mod', '8oz Mod', 'Corn', 'Grits', 'Pots', 'Toast Orders', 'Total']
     report_df[numeric_cols] = report_df[numeric_cols].fillna(0).astype(int)
 
     # Add service totals
