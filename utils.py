@@ -104,11 +104,11 @@ def save_report_data(date, location, report_df):
                     INSERT INTO new_sales_data 
                     (location, order_date, service, interval_time, 
                     half_chix, half_ribs, full_ribs, six_oz_mod, eight_oz_mod,
-                    corn, grits, pots, toast_orders, total)
+                    corn, grits, pots, total)
                     VALUES 
                     (:location, :order_date, :service, :interval_time,
                     :half_chix, :half_ribs, :full_ribs, :six_oz_mod, :eight_oz_mod,
-                    :corn, :grits, :pots, :toast_orders, :total)
+                    :corn, :grits, :pots, :total)
                     ON CONFLICT (location, order_date, service, interval_time)
                     DO UPDATE SET
                         half_chix = EXCLUDED.half_chix,
@@ -119,7 +119,6 @@ def save_report_data(date, location, report_df):
                         corn = EXCLUDED.corn,
                         grits = EXCLUDED.grits,
                         pots = EXCLUDED.pots,
-                        toast_orders = EXCLUDED.toast_orders,
                         total = EXCLUDED.total
                 """), {
                     'location': location,
@@ -134,7 +133,6 @@ def save_report_data(date, location, report_df):
                     'corn': row['Corn'],
                     'grits': row['Grits'],
                     'pots': row['Pots'],
-                    'toast_orders': row['Toast Orders'],
                     'total': row['Total']
                 })
     except SQLAlchemyError as e:
@@ -156,7 +154,6 @@ def get_report_data(date, location, interval_type='1 Hour'):
                        corn as "Corn",
                        grits as "Grits",
                        pots as "Pots",
-                       toast_orders as "Toast Orders",
                        total as "Total"
                 FROM new_sales_data
                 WHERE order_date = :date
@@ -337,7 +334,7 @@ def calculate_interval_counts(interval_items, interval_mods):
     counts = {
         '1/2 Chix': 0, '1/2 Ribs': 0, 'Full Ribs': 0,
         '6oz Mod': 0, '8oz Mod': 0,
-        'Corn': 0, 'Grits': 0, 'Pots': 0, 'Toast Orders': 0
+        'Corn': 0, 'Grits': 0, 'Pots': 0
     }
 
     # Define PLU mappings for each category based on the updated spreadsheets
