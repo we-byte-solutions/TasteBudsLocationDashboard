@@ -57,7 +57,8 @@ def init_db():
                     corn INTEGER NOT NULL DEFAULT 0,
                     grits INTEGER NOT NULL DEFAULT 0,
                     pots INTEGER NOT NULL DEFAULT 0,
-                    toast_orders INTEGER NOT NULL DEFAULT 0,
+                    
+                    DEFAULT 0,
                     total INTEGER NOT NULL DEFAULT 0,
                     UNIQUE (location, order_date, service, interval_time)
                 );
@@ -365,8 +366,7 @@ def calculate_interval_counts(interval_items, interval_mods):
         # Pots category PLUs
         'Pots': [2310, 3081, 3622, 2309],
         
-        # Toast Orders category (for API-pulled data)
-        'Toast Orders': [9999]
+      
     }
 
     # Process items data
