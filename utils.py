@@ -57,8 +57,6 @@ def init_db():
                     corn INTEGER NOT NULL DEFAULT 0,
                     grits INTEGER NOT NULL DEFAULT 0,
                     pots INTEGER NOT NULL DEFAULT 0,
-                    
-                    DEFAULT 0,
                     total INTEGER NOT NULL DEFAULT 0,
                     UNIQUE (location, order_date, service, interval_time)
                 );
